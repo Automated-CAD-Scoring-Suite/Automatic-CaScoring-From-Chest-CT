@@ -14,15 +14,15 @@ def allow_CORS():
 @app.route('/')
 def hello_world():
     allow_CORS()
-    return 'Hello World!'
+    return 'Hello World!!!'
 
-@app.route('process')
+@app.route('/process')
 def calculate_caScore():
     allow_CORS()
     print("Data Received..")
-    print("Starting Calculation..")
 
     print("Done.")
+    return "CaScore: BlahBlah"
 
 
 if __name__ == '__main__':
