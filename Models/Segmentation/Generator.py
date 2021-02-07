@@ -44,7 +44,7 @@ class NiftyGen(tf.keras.utils.Sequence):
         seg = nib.load(os.path.join(image_path, 'segmentation.nii.gz')).get_fdata()
 
         # Both Image and Segmentation must be with the same dimensions
-        assert img.shape == seg.reshape, 'Images and Segmentation are with different Dimensions'
+        assert (img.shape == seg.shape), f'Images and Segmentation are with different Dimensions,{seg.shape} {img.shape}'
 
         # Scale in the HF Range
         if self.scale:
@@ -57,7 +57,7 @@ class NiftyGen(tf.keras.utils.Sequence):
 
         if self.shuffle:
             # Extract Indices of the z view
-            idx = img.shape[-1]
+            idx = np.arange(img.shape[-1])
             np.random.shuffle(idx)
 
             # Shuffle the z view
