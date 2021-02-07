@@ -6,7 +6,7 @@ from tensorflow.keras.layers import Conv2D, Conv2DTranspose, MaxPooling2D, Conca
 from tensorflow.keras.models import Model
 
 
-def unet(levels, convs, input_shape, out_channels, initial_features=32):
+def u_net(levels, convs, input_shape, out_channels, initial_features=32):
     """
         Implementation of the Unet Arch, using tensorflow Layers
         and Functional API
@@ -25,7 +25,7 @@ def unet(levels, convs, input_shape, out_channels, initial_features=32):
     # Encoder Part
     connects = {}
     for level in range(levels):
-        for _ in convs:
+        for _ in range(convs):
             x = Conv2D(initial_features*2**level, **parameters)(x)
         if level < levels-1:
             connects[level] = x
@@ -35,10 +35,10 @@ def unet(levels, convs, input_shape, out_channels, initial_features=32):
     for level in reversed(range(levels-1)):
         x = Conv2DTranspose(initial_features*2**level, strides=2, **parameters)(x)
         x = Concatenate()([x, connects[level]])
-        for _ in convs:
+        for _ in range(convs):
             x = Conv2D(initial_features*2**level, **parameters)(x)
 
     # Model Output
     x = Conv2D(out_channels, kernel_size=1, activation='sigmoid', padding='same')(x)
 
-    return Model(inputs=[inputs], outputs=[x], name=f'U-net_{level}x{convs}_{initial_features}F')
+    return Model(inputs=[inputs], outputs=[x], name=f'Unet_{levels}x{convs}_{initial_features}F')
