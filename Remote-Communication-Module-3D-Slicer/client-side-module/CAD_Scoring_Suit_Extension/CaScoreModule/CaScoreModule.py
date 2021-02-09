@@ -5,6 +5,13 @@ import vtk, qt, ctk, slicer
 from slicer.ScriptedLoadableModule import *
 from slicer.util import VTKObservationMixin
 
+# Processing Packages
+
+import numpy as np
+from PIL import Image
+from io import BytesIO
+import requests
+
 
 #
 # CaScoreModule
@@ -46,8 +53,8 @@ def registerSampleData():
     """
   Add data sets to Sample Data module.
   """
-    # It is always recommended to provide sample data for users to make it easy to try the module,
-    # but if no sample data is available then this method (and associated startupCompeted signal connection) can be removed.
+    # It is always recommended to provide sample data for users to make it easy to try the module, but if no sample
+    # data is available then this method (and associated startupCompeted signal connection) can be removed.
 
     import SampleData
     iconsPath = os.path.join(os.path.dirname(__file__), 'Resources/Icons')
@@ -106,6 +113,7 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.logic = None
         self._parameterNode = None
         self._updatingGUIFromParameterNode = False
+        self.LocalProcessing = True
 
     def setup(self):
         """
@@ -137,13 +145,17 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # These connections ensure that whenever user changes some settings on the GUI, that is saved in the MRML scene
         # (in the selected parameter node).
         self.ui.inputSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.updateParameterNodeFromGUI)
-        self.ui.outputSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.updateParameterNodeFromGUI)
-        self.ui.imageThresholdSliderWidget.connect("valueChanged(double)", self.updateParameterNodeFromGUI)
-        self.ui.invertOutputCheckBox.connect("toggled(bool)", self.updateParameterNodeFromGUI)
-        self.ui.invertedOutputSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.updateParameterNodeFromGUI)
+        # self.ui.outputSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.updateParameterNodeFromGUI)
+        # self.ui.imageThresholdSliderWidget.connect("valueChanged(double)", self.updateParameterNodeFromGUI)
+        # self.ui.invertOutputCheckBox.connect("toggled(bool)", self.updateParameterNodeFromGUI)
+        # self.ui.invertedOutputSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.updateParameterNodeFromGUI)
 
         # Buttons
         self.ui.applyButton.connect('clicked(bool)', self.onApplyButton)
+
+        # Radio Boxes
+        self.ui.OnlineProcessingRadio.toggled.connect(self.ProcessingLocationSelect)
+        self.ui.LocalProcessingRadio.toggled.connect(self.ProcessingLocationSelect)
 
         # Make sure parameter node is initialized (needed for module reload)
         self.initializeParameterNode()
@@ -233,17 +245,17 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         # Update node selectors and sliders
         self.ui.inputSelector.setCurrentNode(self._parameterNode.GetNodeReference("InputVolume"))
-        self.ui.outputSelector.setCurrentNode(self._parameterNode.GetNodeReference("OutputVolume"))
-        self.ui.invertedOutputSelector.setCurrentNode(self._parameterNode.GetNodeReference("OutputVolumeInverse"))
-        self.ui.imageThresholdSliderWidget.value = float(self._parameterNode.GetParameter("Threshold"))
-        self.ui.invertOutputCheckBox.checked = (self._parameterNode.GetParameter("Invert") == "true")
+        # self.ui.outputSelector.setCurrentNode(self._parameterNode.GetNodeReference("OutputVolume"))
+        # self.ui.invertedOutputSelector.setCurrentNode(self._parameterNode.GetNodeReference("OutputVolumeInverse"))
+        # self.ui.imageThresholdSliderWidget.value = float(self._parameterNode.GetParameter("Threshold"))
+        # self.ui.invertOutputCheckBox.checked = (self._parameterNode.GetParameter("Invert") == "true")
 
         # Update buttons states and tooltips
-        if self._parameterNode.GetNodeReference("InputVolume") and self._parameterNode.GetNodeReference("OutputVolume"):
-            self.ui.applyButton.toolTip = "Compute output volume"
+        if self._parameterNode.GetNodeReference("InputVolume"):
+            self.ui.applyButton.toolTip = "Compute CaScore"
             self.ui.applyButton.enabled = True
         else:
-            self.ui.applyButton.toolTip = "Select input and output volume nodes"
+            self.ui.applyButton.toolTip = "Select input volume"
             self.ui.applyButton.enabled = False
 
         # All the GUI updates are done
@@ -261,12 +273,28 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         wasModified = self._parameterNode.StartModify()  # Modify all properties in a single batch
 
         self._parameterNode.SetNodeReferenceID("InputVolume", self.ui.inputSelector.currentNodeID)
-        self._parameterNode.SetNodeReferenceID("OutputVolume", self.ui.outputSelector.currentNodeID)
-        self._parameterNode.SetParameter("Threshold", str(self.ui.imageThresholdSliderWidget.value))
-        self._parameterNode.SetParameter("Invert", "true" if self.ui.invertOutputCheckBox.checked else "false")
-        self._parameterNode.SetNodeReferenceID("OutputVolumeInverse", self.ui.invertedOutputSelector.currentNodeID)
+        # self._parameterNode.SetNodeReferenceID("OutputVolume", self.ui.outputSelector.currentNodeID)
+        # self._parameterNode.SetParameter("Threshold", str(self.ui.imageThresholdSliderWidget.value))
+        # self._parameterNode.SetParameter("Invert", "true" if self.ui.invertOutputCheckBox.checked else "false")
+        # self._parameterNode.SetNodeReferenceID("OutputVolumeInverse", self.ui.invertedOutputSelector.currentNodeID)
+        self._parameterNode.SetParameter("URL",
+                                         self.ui.URLLineEdit.text if self.ui.URLLineEdit.isEnabled() else "http://localhost:500")
+        self._parameterNode.SetParameter("Local", "true" if self.ui.LocalProcessingRadio.checked else "false")
 
         self._parameterNode.EndModify(wasModified)
+
+    def ProcessingLocationSelect(self):
+        """
+        Handles Changes Processing Location Settings
+        """
+
+        if (self.ui.LocalProcessingRadio.isChecked()):
+            self.ui.URLLineEdit.setDisabled(True)
+            self.LocalProcessing = True
+
+        elif (self.ui.OnlineProcessingRadio.isChecked()):
+            self.ui.URLLineEdit.setEnabled(True)
+            self.LocalProcessing = False
 
     def onApplyButton(self):
         """
@@ -275,15 +303,15 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         try:
 
             # Compute output
-            self.logic.process(self.ui.inputSelector.currentNode(), self.ui.outputSelector.currentNode(),
-                               self.ui.imageThresholdSliderWidget.value, self.ui.invertOutputCheckBox.checked)
+            self.logic.process(self.ui.inputSelector.currentNode(), self.LocalProcessing,
+                               self.ui.URLLineEdit.text)
 
             # Compute inverted output (if needed)
-            if self.ui.invertedOutputSelector.currentNode():
-                # If additional output volume is selected then result with inverted threshold is written there
-                self.logic.process(self.ui.inputSelector.currentNode(), self.ui.invertedOutputSelector.currentNode(),
-                                   self.ui.imageThresholdSliderWidget.value, not self.ui.invertOutputCheckBox.checked,
-                                   showResult=False)
+            # if self.ui.invertedOutputSelector.currentNode():
+            #     # If additional output volume is selected then result with inverted threshold is written there
+            #     self.logic.process(self.ui.inputSelector.currentNode(), self.ui.invertedOutputSelector.currentNode(),
+            #                        self.ui.imageThresholdSliderWidget.value, not self.ui.invertOutputCheckBox.checked,
+            #                        showResult=False)
 
         except Exception as e:
             slicer.util.errorDisplay("Failed to compute results: " + str(e))
@@ -315,12 +343,12 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
         """
     Initialize parameter node with default settings.
     """
-        if not parameterNode.GetParameter("Threshold"):
-            parameterNode.SetParameter("Threshold", "100.0")
-        if not parameterNode.GetParameter("Invert"):
-            parameterNode.SetParameter("Invert", "false")
+        if not parameterNode.GetParameter("URL"):
+            parameterNode.SetParameter("URL", "http://localhost:5000")
+        if not parameterNode.GetParameter("Local"):
+            parameterNode.SetParameter("Local", "true")
 
-    def process(self, inputVolume, outputVolume, imageThreshold, invert=False, showResult=True):
+    def processOld(self, inputVolume, outputVolume, imageThreshold, invert=False, showResult=True):
         """
     Run the processing algorithm.
     Can be used without GUI widget.
@@ -350,6 +378,64 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
         # We don't need the CLI module node anymore, remove it to not clutter the scene with it
         slicer.mrmlScene.RemoveNode(cliNode)
 
+        stopTime = time.time()
+        logging.info('Processing completed in {0:.2f} seconds'.format(stopTime - startTime))
+
+    def process(self, inputVolume, LocalProcessing=True, ProcessingURL="http://localhost:5000"):
+
+        if not inputVolume:
+            raise ValueError("Input volume is invalid")
+
+        import time
+        startTime = time.time()
+        logging.info('Processing started')
+
+        # Convert Volume To NumPy Array
+
+        VolumeArray = np.array(slicer.util.arrayFromVolume(inputVolume))
+        VolumeShape = VolumeArray.shape
+
+        # Axial, Sagittal, Coronal
+        Names = ["Ax1", "Ax2", "Ax3", "Sag1", "Sag2", "Sag3", "Cor1", "Cor2", "Cor3"]
+        files = {}
+        data = {}
+
+        # Prepare Slices
+        for i in range(3):
+            Mid = int(VolumeShape[i] / 2)
+            if i == 0:
+                logging.info(f"Preparing Axial Slices Number {Mid - 1}, {Mid}, {Mid + 1}")
+            elif i == 1:
+                logging.info(f"Preparing Sagittal Slices Number {Mid - 1}, {Mid}, {Mid + 1}")
+            elif i == 2:
+                logging.info(f"Preparing Coronal Slices Number {Mid - 1}, {Mid}, {Mid + 1}")
+            for j in range(-1, 2):
+                if i == 0:
+                    # Prepare Axial Slices
+                    Arr = VolumeArray[Mid + j, :, :]
+                elif i == 1:
+                    # Prepare Sagittal Slices
+                    Arr = VolumeArray[:, Mid + j, :]
+                elif i == 2:
+                    # Prepare Coronal Slices
+                    Arr = VolumeArray[:, :, Mid + j]
+
+                ArrS = Arr.min()
+                # Shift Array Values if There Exists -Ve Values, since -ve values are lost during PNG conversion,
+                # and store the shift value to be sent
+                if ArrS < 0:
+                    Arr -= ArrS
+                    data[Names[0]] = ArrS
+                else:
+                    data[Names[0]] = 0
+                SliceImg = Image.fromarray(Arr)
+                SliceBytes = BytesIO()
+                SliceImg.save(SliceBytes, format="PNG")
+                SliceBytes.seek(0, 0)
+                files[Names.pop(0)] = SliceBytes
+
+        SliceSendReq = requests.post(ProcessingURL + "/crop", files=files, data=data)
+        print(SliceSendReq)
         stopTime = time.time()
         logging.info('Processing completed in {0:.2f} seconds'.format(stopTime - startTime))
 
