@@ -69,3 +69,15 @@ def plot_slice(data, x, y, z):
     # sagital_image = data[213, :, :] # Axis 0
     # coronal_image = data[:, 154, :] # Axis 1
     # axial_image = data[:, :, 32]    # Axis 2
+
+def show_image(image, title: str, cmap: str = 'gray'):
+    """
+    :param image: Image array "2D array"
+    :param title: Figure Title "String"
+    :param cmap: image color mapping "string"
+    """
+    plt.figure()
+    plt.title(title)
+    plt.imshow(image, cmap = cmap)
+    plt.xticks([]), plt.yticks([])
+
