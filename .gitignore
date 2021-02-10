@@ -134,3 +134,4 @@ dmypy.json
 
 # Files 
 Models/Segmentation/Data
+.vscode/settings.json
