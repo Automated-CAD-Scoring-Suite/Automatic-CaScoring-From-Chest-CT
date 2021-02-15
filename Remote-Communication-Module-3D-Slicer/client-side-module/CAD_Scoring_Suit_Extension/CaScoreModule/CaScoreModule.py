@@ -12,9 +12,12 @@ from PIL import Image
 from io import BytesIO
 import requests
 
-RepoRoot = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))))
+RepoRoot = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))))
 sys.path.append(RepoRoot)
 from Models.crop_roi import get_coords
+
+
 #
 # CaScoreModule
 #
@@ -445,8 +448,9 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
             Coordinates = SliceSendReq.json()["Coor"]
             logging.info(f"Received Cropping Coordinates From Online Server")
         else:
-            for i in range(-1, 2):
-                Coordinates.append(get_coords(RawSliceArrays[i]))
+            for x in range(0, 3):
+                print(x)
+                Coordinates.append(get_coords(RawSliceArrays[x]))
             logging.info(f"Cropping Coordinates Calculated Locally")
 
         logging.info(f"The Cropping Coordinates Are {Coordinates}")
@@ -464,7 +468,7 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
 
         logging.info(f"The Cropping Coordinates Are X->{x1}:{x2}, Y->{y1}:{y2}, Z->{z1}:{z2}")
         print(VolumeShape)
-        slicer.util.updateVolumeFromArray(inputVolume, VolumeArray[z1:z2, x1:x2, y1:y2])
+        # slicer.util.updateVolumeFromArray(inputVolume, VolumeArray[z1:z2, x1:x2, y1:y2])
         stopTime = time.time()
         logging.info('Processing completed in {0:.2f} seconds'.format(stopTime - startTime))
 
