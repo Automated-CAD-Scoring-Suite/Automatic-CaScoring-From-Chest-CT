@@ -1,6 +1,7 @@
 # Import Required Packages
 import numpy as np
 
+
 def find_roi_2D(s):
     """
 
@@ -23,7 +24,7 @@ def find_roi_2D(s):
     x2 = np.unravel_index(np.argmax(s_rotated_fliped, axis=None), s.shape)
 
     # return x1, x2, y1, y2 of image
-    return x1[0], s.shape[1]-x2[0], y1[0], s.shape[0]-y2[0]
+    return x1[0], s.shape[1] - x2[0], y1[0], s.shape[0] - y2[0]
 
 
 def get_coords(Slices: list):
@@ -46,6 +47,6 @@ def get_coords(Slices: list):
         x2.append(pnt2)
         y1.append(pnt3)
         y2.append(pnt4)
-    
+
     # Return shape[1] then shape[0]
     return [min(x1), max(x2), min(y1), max(y2)]

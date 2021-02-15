@@ -1,4 +1,4 @@
-import os
+import os, sys
 import unittest
 import logging
 import vtk, qt, ctk, slicer
@@ -12,7 +12,9 @@ from PIL import Image
 from io import BytesIO
 import requests
 
-
+RepoRoot = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))))
+sys.path.append(RepoRoot)
+from Models.crop_roi import get_coords
 #
 # CaScoreModule
 #
@@ -395,11 +397,14 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
         VolumeArray = np.array(slicer.util.arrayFromVolume(inputVolume))
         VolumeShape = VolumeArray.shape
 
+        # Cropping Pattern Start
+
         # Axial, Sagittal, Coronal
         Names = ["Ax1", "Ax2", "Ax3", "Sag1", "Sag2", "Sag3", "Cor1", "Cor2", "Cor3"]
         files = {}
         data = {}
-
+        RawSliceArrays = [[], [], []]
+        Coordinates = []
         # Prepare Slices
         for i in range(3):
             Mid = int(VolumeShape[i] / 2)
@@ -419,23 +424,47 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
                 elif i == 2:
                     # Prepare Coronal Slices
                     Arr = VolumeArray[:, :, Mid + j]
+                RawSliceArrays[i].append(Arr)
+                if not LocalProcessing:
+                    ArrS = Arr.min()
+                    # Shift Array Values if There Exists -Ve Values, since -ve values are lost during PNG conversion,
+                    # and store the shift value to be sent
+                    if ArrS < 0:
+                        Arr -= ArrS
+                        data[Names[0]] = ArrS
+                    else:
+                        data[Names[0]] = 0
+                    SliceImg = Image.fromarray(Arr)
+                    SliceBytes = BytesIO()
+                    SliceImg.save(SliceBytes, format="PNG")
+                    SliceBytes.seek(0, 0)
+                    files[Names.pop(0)] = SliceBytes
 
-                ArrS = Arr.min()
-                # Shift Array Values if There Exists -Ve Values, since -ve values are lost during PNG conversion,
-                # and store the shift value to be sent
-                if ArrS < 0:
-                    Arr -= ArrS
-                    data[Names[0]] = ArrS
-                else:
-                    data[Names[0]] = 0
-                SliceImg = Image.fromarray(Arr)
-                SliceBytes = BytesIO()
-                SliceImg.save(SliceBytes, format="PNG")
-                SliceBytes.seek(0, 0)
-                files[Names.pop(0)] = SliceBytes
+        if not LocalProcessing:
+            SliceSendReq = requests.post(ProcessingURL + "/crop", files=files, data=data)
+            Coordinates = SliceSendReq.json()["Coor"]
+            logging.info(f"Received Cropping Coordinates From Online Server")
+        else:
+            for i in range(-1, 2):
+                Coordinates.append(get_coords(RawSliceArrays[i]))
+            logging.info(f"Cropping Coordinates Calculated Locally")
 
-        SliceSendReq = requests.post(ProcessingURL + "/crop", files=files, data=data)
-        print(SliceSendReq)
+        logging.info(f"The Cropping Coordinates Are {Coordinates}")
+        # [z,x,y]
+        # Coordinates = [[Xmin, Xmax, Ymin, Ymax],[Zmin,Zmax, Ymin, Ymax],[Zmin, Zmax, Xmin,Xmax]]
+        # Start Cropping
+        # Determine Correct Cropping Coordinates
+
+        x1 = np.minimum(Coordinates[0][0], Coordinates[2][0])
+        x2 = np.maximum(Coordinates[0][1], Coordinates[2][1])
+        y1 = np.minimum(Coordinates[0][2], Coordinates[1][0])
+        y2 = np.maximum(Coordinates[0][3], Coordinates[1][1])
+        z1 = np.minimum(Coordinates[1][2], Coordinates[2][2])
+        z2 = np.maximum(Coordinates[1][3], Coordinates[2][3])
+
+        logging.info(f"The Cropping Coordinates Are X->{x1}:{x2}, Y->{y1}:{y2}, Z->{z1}:{z2}")
+        print(VolumeShape)
+        slicer.util.updateVolumeFromArray(inputVolume, VolumeArray[z1:z2, x1:x2, y1:y2])
         stopTime = time.time()
         logging.info('Processing completed in {0:.2f} seconds'.format(stopTime - startTime))
 
