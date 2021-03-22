@@ -7,7 +7,6 @@ import numpy as np
 import os
 import tensorflow as tf
 import random
-from skimage.transform import rescale
 from scipy.ndimage import zoom
 
 
@@ -16,7 +15,6 @@ class NiftyGen(tf.keras.utils.Sequence):
     """
     Keras Sequence for loading Nifty image formats
     """
-
     def __init__(self, images_path, batch_size, batch_start, scale=True, shuffle=True, down_factor=None, channels=1):
         self.path = images_path
         self.batch_size = batch_size
@@ -30,6 +28,14 @@ class NiftyGen(tf.keras.utils.Sequence):
     def __len__(self):
         return len(self.records)
 
+    def range_scale(self, img):
+        """
+        Scale Given Image Array using HF range
+        :param img: Input 3d Array
+        :return: Scaled Array
+        """
+        return (img - img.min()) / (img.max() - img.min())
+
     def zoom3D(self, img, factor: float):
         """
         Down Sample the input volume to desired shape
@@ -39,7 +45,6 @@ class NiftyGen(tf.keras.utils.Sequence):
         """
         assert img.shape[0] == img.shape[1], f"First View is not a Square, {img.shape}"
         z_factor = (img.shape[0]*factor)/img.shape[-1]
-
         return zoom(img, (factor, factor, z_factor))
 
     def __getitem__(self, index):
@@ -91,7 +96,6 @@ class NiftyGen(tf.keras.utils.Sequence):
     def on_epoch_end(self):
         """
         Randomly shuffle Images selected
-        :return:
         """
         random.shuffle(self.records)
 
