@@ -135,3 +135,9 @@ dmypy.json
 # Files 
 Models/Segmentation/Data
 .vscode/settings.json
+
+Dataset/trv1p1cti-heart_label_1.nii.gz
+
+Remote-Communication-Module-3D-Slicer/client-side-module/CAD_Scoring_Suit_Extension/.vscode/settings.json
+
+Remote-Communication-Module-3D-Slicer/flask-server/.flaskenv

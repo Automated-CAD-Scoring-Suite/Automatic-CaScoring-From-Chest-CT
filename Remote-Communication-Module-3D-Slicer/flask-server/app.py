@@ -63,8 +63,7 @@ def GetSlice():
                     SagSlices.append(SliceArray)
                 elif "Cor" in SliceName:
                     CorSlices.append(SliceArray)
-                    plt.imshow(SliceArray, cmap="gray")
-                    plt.show()
+
 
             AxCoor = [int(i) for i in get_coords(AxSlices)]
             SagCoor = [int(i) for i in get_coords(SagSlices)]
