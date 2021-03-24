@@ -7,7 +7,8 @@ import numpy as np
 import os
 import tensorflow as tf
 import random
-from scipy.ndimage import zoom
+from scipy.ndimage import zoom, laplace, sobel
+from skimage.exposure import equalize_hist
 
 
 # Keras Sequence Class
@@ -50,7 +51,6 @@ class NiftyGen(tf.keras.utils.Sequence):
     def __getitem__(self, index):
         # Load Segmentation and Data in the Record
         image_path = os.path.join(self.path, self.records[index])
-
         img = nib.load(os.path.join(image_path, 'imaging.nii.gz')).get_fdata()
         seg = nib.load(os.path.join(image_path, 'segmentation.nii.gz')).get_fdata()
 
@@ -101,4 +101,44 @@ class NiftyGen(tf.keras.utils.Sequence):
 
 
 class NiftyAugmentor:
-    pass
+    """Augmentor Class, Responsible for the application of different Augmentation Techniques"""
+    def __init__(self, equalize=True, laplace_transform=True, sobel_transform=True, invert=True):
+        self.eq = equalize_hist
+        self.trans_laplace = laplace
+        self.trans_sobel = sobel
+        self.invert = lambda x: 1-x
+
+        self.filters = {
+            "equalize": [equalize, self.eq],
+            "laplace_transform": [laplace_transform, self.trans_laplace],
+            "sobel_transform": [sobel_transform, self.trans_sobel],
+            "invert": [invert, self.invert],
+        }
+        self.vector = None
+        self.filtered_result = []
+
+    def fit(self, vector: np.ndarray):
+        """
+        Main Filtering Functions that takes input Image and apply
+        chosen filters.
+        :param vector: Input n-Dimensional Image
+        :return: Filtered n-Dimensional Image
+        """
+        self.vector = np.copy(vector)
+
+        for process in self.filters:
+            if self.filters[process][0]:
+                self.filtered_result.append(self.filters[process][1](self.vector))
+
+        return self.filtered_result
+
+
+if __name__ == '__main__':
+    import nibabel as nib
+    img = nib.load('Data/Training/ct_train_1001/imaging.nii.gz').get_fdata()
+
+    aug = NiftyAugmentor()
+    res = aug.fit(img)
+    print(res)
+
+
