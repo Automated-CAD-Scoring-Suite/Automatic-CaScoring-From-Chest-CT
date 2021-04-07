@@ -6,22 +6,23 @@ import numpy as np
 import os
 import tensorflow as tf
 import random
-from scipy.ndimage import zoom, laplace, sobel
-from skimage.exposure import equalize_hist
+from scipy.ndimage import zoom, sobel
+from skimage.exposure import equalize_hist, adjust_gamma
+from functools import partial
 
 
 # Augmenter Class
 class NiftyAugmentor:
     """Augmentor Class, Responsible for the application of different Augmentation Techniques"""
-    def __init__(self, equalize=True, laplace_transform=True, sobel_transform=True, invert=True):
+    def __init__(self, equalize=True, adjust=True, sobel_transform=True, invert=True, gamma=2):
         self.eq = equalize_hist
-        self.trans_laplace = laplace
+        self.trans_laplace = partial(adjust_gamma, gamma=gamma)
         self.trans_sobel = sobel
         self.invert = lambda x: 1-x
 
         self.filters = {
             "equalize": [equalize, self.eq],
-            "laplace_transform": [laplace_transform, self.trans_laplace],
+            "adjust": [adjust, self.trans_laplace],
             "sobel_transform": [sobel_transform, self.trans_sobel],
             "invert": [invert, self.invert],
         }
@@ -41,7 +42,8 @@ class NiftyAugmentor:
             if self.filters[process][0]:
                 self.filtered_result.append(self.filters[process][1](self.vector))
 
-        return np.concatenate(self.filtered_result, -1)
+        self.filtered_result = np.concatenate(self.filtered_result, -1)
+        return np.concatenate([self.vector, self.filtered_result], -1)
 
 
 # Keras Sequence Class
@@ -62,7 +64,8 @@ class NiftyGen(tf.keras.utils.Sequence):
     def __len__(self):
         return len(self.records)
 
-    def range_scale(self, img):
+    @staticmethod
+    def range_scale(img):
         """
         Scale Given Image Array using HF range
         :param img: Input 3d Array
@@ -70,7 +73,8 @@ class NiftyGen(tf.keras.utils.Sequence):
         """
         return (img - img.min()) / (img.max() - img.min())
 
-    def zoom3D(self, img, factor: float):
+    @staticmethod
+    def zoom3D(img, factor: float):
         """
         Down Sample the input volume to desired shape
         :param img: Input Img
@@ -111,9 +115,9 @@ class NiftyGen(tf.keras.utils.Sequence):
             seg = seg[:, :, idx]
 
         # TODO: CONVERT to function, Enhance Readability
+
         # Taking Frames in the size of (batch_start - batch_size)
         # Fill RGB Channels with the Same Slice
-
         if self.channels == 1:
             img = img[:, :, self.batch_start: self.batch_start + self.batch_size]
         else:
@@ -121,9 +125,9 @@ class NiftyGen(tf.keras.utils.Sequence):
 
         seg = seg[:, :, self.batch_start: self.batch_start + self.batch_size]
 
+        # For the Augmentation class input the image and concatenate the results
         if self.aug:
-            # For the Augmentation class input the image and concatenate the results
-            img = np.concatenate([img, self.aug.fit(img)])
+            img = self.aug.fit(img)
 
         # Reshape the Output Images to be compatible with Tensorflow Slicing System
         # (batch_size, Resolution, Resolution, Channels)
@@ -137,9 +141,23 @@ class NiftyGen(tf.keras.utils.Sequence):
         random.shuffle(self.records)
 
 
-# if __name__ == '__main__':
-#     img2 = nib.load('Data/Training/ct_train_1001/imaging.nii.gz').get_fdata()
-#
-#     aug = NiftyAugmentor()
-#     res = np.concatenate(aug.fit(img2[:, :, :5]), -1)
-#     print(res, res.shape)
+if __name__ == '__main__':
+    import matplotlib.pyplot as plt
+    img2 = nib.load('Data/Training/ct_train_1001/imaging.nii.gz').get_fdata()
+    seg2 = nib.load('Data/Training/ct_train_1001/segmentation.nii.gz').get_fdata()
+
+    scale = NiftyGen.range_scale
+    img2 = scale(img2)
+
+    aug = NiftyAugmentor()
+    res = aug.fit(img2[:, :, 190:200])
+    print(res.shape)
+
+    fig, ax = plt.subplots(5, 10, figsize=(30, 30))
+
+    s = 0
+    for i in range(5):
+        for j in range(10):
+            ax[i][j].imshow(res[:, :, s], 'gray')
+            s += 1
+    plt.show()
