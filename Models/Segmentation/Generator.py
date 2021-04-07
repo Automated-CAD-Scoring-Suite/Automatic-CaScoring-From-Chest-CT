@@ -128,6 +128,7 @@ class NiftyGen(tf.keras.utils.Sequence):
         # For the Augmentation class input the image and concatenate the results
         if self.aug:
             img = self.aug.fit(img)
+            seg = np.repeat(seg, 5, -1)
 
         # Reshape the Output Images to be compatible with Tensorflow Slicing System
         # (batch_size, Resolution, Resolution, Channels)
@@ -148,16 +149,24 @@ if __name__ == '__main__':
 
     scale = NiftyGen.range_scale
     img2 = scale(img2)
+    seg2 = seg2[:, :, 190: 195]
 
     aug = NiftyAugmentor()
-    res = aug.fit(img2[:, :, 190:200])
+    res = aug.fit(img2[:, :, 190:195])
     print(res.shape)
 
-    fig, ax = plt.subplots(5, 10, figsize=(30, 30))
+    fig, ax = plt.subplots(6, 5, figsize=(30, 30))
 
     s = 0
     for i in range(5):
-        for j in range(10):
+        for j in range(5):
             ax[i][j].imshow(res[:, :, s], 'gray')
             s += 1
+
+    for i in range(5):
+        ax[5][i].imshow(seg2[:, :, i], 'gray')
     plt.show()
+
+    seg3 = np.repeat(seg2, 5, -1)
+    print(seg3.shape)
+    print(res.shape)
