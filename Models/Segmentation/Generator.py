@@ -82,7 +82,7 @@ class NiftyGen(tf.keras.utils.Sequence):
         :param factor: Down sampling Factor
         :return: Zoomed Img
         """
-        assert img.shape[0] == img.shape[1], f"First View is not a Square, {img.shape}"
+        assert img.shape[0] == img.shape[1]
         z_factor = (img.shape[0]*factor)/img.shape[-1]
         return zoom(img, (factor, factor, z_factor))
 
@@ -144,30 +144,35 @@ class NiftyGen(tf.keras.utils.Sequence):
 
 
 if __name__ == '__main__':
-    import matplotlib.pyplot as plt
-    img2 = nib.load('Data/Training/ct_train_1001/imaging.nii.gz').get_fdata()
-    seg2 = nib.load('Data/Training/ct_train_1001/segmentation.nii.gz').get_fdata()
+    # import matplotlib.pyplot as plt
+    # img2 = nib.load('Data/Training/ct_train_1001/imaging.nii.gz').get_fdata()
+    # seg2 = nib.load('Data/Training/ct_train_1001/segmentation.nii.gz').get_fdata()
 
-    scale = NiftyGen.range_scale
-    img2 = scale(img2)
-    seg2 = seg2[:, :, 190: 195]
+    # scale = NiftyGen.range_scale
+    # img2 = scale(img2)
+    # seg2 = seg2[:, :, 190: 195]
 
-    aug = NiftyAugmentor()
-    res = aug.fit(img2[:, :, 190:195])
-    print(res.shape)
+    # aug = NiftyAugmentor()
+    # res = aug.fit(img2[:, :, 190:195])
+    # print(res.shape)
 
-    fig, ax = plt.subplots(6, 5, figsize=(30, 30))
+    # fig, ax = plt.subplots(6, 5, figsize=(30, 30))
 
-    s = 0
-    for i in range(5):
-        for j in range(5):
-            ax[i][j].imshow(res[:, :, s], 'gray')
-            s += 1
+    # s = 0
+    # for i in range(5):
+    #     for j in range(5):
+    #         ax[i][j].imshow(res[:, :, s], 'gray')
+    #         s += 1
 
-    for i in range(5):
-        ax[5][i].imshow(seg2[:, :, i], 'gray')
-    plt.show()
+    # for i in range(5):
+    #     ax[5][i].imshow(seg2[:, :, i], 'gray')
+    # plt.show()
 
-    seg3 = np.repeat(seg2, 5, -1)
-    print(seg3.shape)
-    print(res.shape)
+    # seg3 = np.repeat(seg2, 5, -1)
+    # print(seg3.shape)
+    # print(res.shape)
+    gen = NiftyGen('./Data/Training', 10, 0, NiftyAugmentor(), down_factor=4)
+
+    for i in range(len(gen)):
+        print(gen[i])
+
