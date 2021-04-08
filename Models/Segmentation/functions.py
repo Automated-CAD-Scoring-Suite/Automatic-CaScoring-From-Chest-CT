@@ -22,8 +22,8 @@ def dice_coef(y_true, y_pred, smooth=1):
 
 
 def tversky(y_true, y_pred, smooth=1, alpha=0.7):
-    y_true_pos = K.flatten(y_true).astype('float32')
-    y_pred_pos = K.flatten(y_pred).astype('float32')
+    y_true_pos = K.flatten(y_true)
+    y_pred_pos = K.flatten(y_pred.astype('float32'))
     true_pos = K.sum(y_true_pos * y_pred_pos)
     false_neg = K.sum(y_true_pos * (1 - y_pred_pos))
     false_pos = K.sum((1 - y_true_pos) * y_pred_pos)
