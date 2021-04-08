@@ -92,6 +92,8 @@ class NiftyGen(tf.keras.utils.Sequence):
         img = nib.load(os.path.join(image_path, 'imaging.nii.gz')).get_fdata()
         seg = nib.load(os.path.join(image_path, 'segmentation.nii.gz')).get_fdata()
 
+
+        print(img.dtype)
         # Both Image and Segmentation must be with the same dimensions
         assert (img.shape == seg.shape),\
             f'Images and Segmentation are with different Dimensions,{seg.shape} {img.shape}'
@@ -174,5 +176,5 @@ if __name__ == '__main__':
     gen = NiftyGen('./Data/Training', 10, 0, NiftyAugmentor(), down_factor=4)
 
     for i in range(len(gen)):
-        print(gen[i])
+        print(gen[i].shape)
 
