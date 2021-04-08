@@ -98,11 +98,9 @@ class NiftyGen(tf.keras.utils.Sequence):
         # Scale in the HF Range
         if self.scale:
             img = self.range_scale(img)
-            img *= 255
 
             # Convert Two Arrays to Lower Data Types
-            img = img.astype(np.int)
-            seg = seg.astype(np.int)
+            img = img.astype('float32')
 
         # Down sampling
         if self.down_factor:
