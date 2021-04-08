@@ -9,7 +9,7 @@ import random
 from scipy.ndimage import zoom, sobel
 from skimage.exposure import equalize_hist, adjust_gamma
 from functools import partial
-from numba import vectorize
+from numba import jit, cuda, vectorize
 
 # Augmenter Class
 class NiftyAugmentor:
@@ -27,7 +27,6 @@ class NiftyAugmentor:
             "invert": [invert, self.invert],
         }
         self.vector = None
-        self.filtered_result = []
 
     def fit(self, vector: np.ndarray):
         """
@@ -36,6 +35,7 @@ class NiftyAugmentor:
         :param vector: Input n-Dimensional Image
         :return: Filtered n-Dimensional Image
         """
+        self.filtered_result = []
         self.vector = np.copy(vector)
 
         for process in self.filters:
@@ -74,7 +74,6 @@ class NiftyGen(tf.keras.utils.Sequence):
         return (img - img.min()) / (img.max() - img.min())
 
     @staticmethod
-    @vectorize(['float64(float64, float)'], target='cuda')
     def zoom3D(img, factor: float):
         """
         Down Sample the input volume to desired shape
@@ -92,8 +91,6 @@ class NiftyGen(tf.keras.utils.Sequence):
         img = nib.load(os.path.join(image_path, 'imaging.nii.gz')).get_fdata()
         seg = nib.load(os.path.join(image_path, 'segmentation.nii.gz')).get_fdata()
 
-
-        print(img.dtype)
         # Both Image and Segmentation must be with the same dimensions
         assert (img.shape == seg.shape),\
             f'Images and Segmentation are with different Dimensions,{seg.shape} {img.shape}'
@@ -101,11 +98,19 @@ class NiftyGen(tf.keras.utils.Sequence):
         # Scale in the HF Range
         if self.scale:
             img = self.range_scale(img)
+            img *= 255
+
+            # Convert Two Arrays to Lower Data Types
+            img = img.astype(np.int)
+            seg = seg.astype(np.int)
 
         # Down sampling
         if self.down_factor:
-            img = self.zoom3D(img, self.down_factor)
-            seg = self.zoom3D(seg, self.down_factor)
+            # Deprecating this implementation
+            # img = self.zoom3D(img, self.down_factor)
+            # seg = self.zoom3D(seg, self.down_factor)
+            img = img[0::self.down_factor, 0::self.down_factor, :]
+            seg = seg[0::self.down_factor, 0::self.down_factor, :]
 
         # Shuffle Inputs
         if self.shuffle:
@@ -133,10 +138,12 @@ class NiftyGen(tf.keras.utils.Sequence):
             img = self.aug.fit(img)
             seg = np.repeat(seg, 5, -1)
 
+        augmentation_size = len(self.aug.filters)+1
+
         # Reshape the Output Images to be compatible with Tensorflow Slicing System
         # (batch_size, Resolution, Resolution, Channels)
-        return (img.reshape((self.batch_size, img.shape[0], img.shape[1], self.channels)),
-                seg.reshape((self.batch_size, img.shape[0], img.shape[1], 1)))
+        return (img.reshape((self.batch_size*augmentation_size, img.shape[0], img.shape[1], self.channels)),
+                seg.reshape((self.batch_size*augmentation_size, img.shape[0], img.shape[1], 1)))
 
     def on_epoch_end(self):
         """
@@ -173,8 +180,8 @@ if __name__ == '__main__':
     # seg3 = np.repeat(seg2, 5, -1)
     # print(seg3.shape)
     # print(res.shape)
-    gen = NiftyGen('./Data/Training', 10, 0, NiftyAugmentor(), down_factor=4)
+    gen = NiftyGen('./Data/Training', 20, 0, NiftyAugmentor(), down_factor=4)
 
     for i in range(len(gen)):
-        print(gen[i].shape)
-
+        print("img", gen[i][0].shape)
+        print("seg", gen[i][1].shape)
