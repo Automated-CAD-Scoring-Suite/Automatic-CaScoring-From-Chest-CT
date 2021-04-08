@@ -74,7 +74,7 @@ class NiftyGen(tf.keras.utils.Sequence):
         return (img - img.min()) / (img.max() - img.min())
 
     @staticmethod
-    @vectorize(['[float64(float64, float)]'], target='cuda')
+    @vectorize(['float64(float64, float)'], target='cuda')
     def zoom3D(img, factor: float):
         """
         Down Sample the input volume to desired shape
