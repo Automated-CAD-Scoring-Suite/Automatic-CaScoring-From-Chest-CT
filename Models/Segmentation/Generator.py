@@ -9,7 +9,7 @@ import random
 from scipy.ndimage import zoom, sobel
 from skimage.exposure import equalize_hist, adjust_gamma
 from functools import partial
-
+from numba import vectorize
 
 # Augmenter Class
 class NiftyAugmentor:
@@ -74,6 +74,7 @@ class NiftyGen(tf.keras.utils.Sequence):
         return (img - img.min()) / (img.max() - img.min())
 
     @staticmethod
+    @vectorize(['float64(float64)'], target='cuda')
     def zoom3D(img, factor: float):
         """
         Down Sample the input volume to desired shape
