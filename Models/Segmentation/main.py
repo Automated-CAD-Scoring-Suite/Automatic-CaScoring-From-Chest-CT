@@ -13,20 +13,20 @@ model_path = 'Model_Weights'
 gpu_name = tf.test.gpu_device_name()
 
 # Train Consts
-down_factor = 8
+down_factor = 4
 input_shape = (512//down_factor, 512//down_factor, 1)
 
-levels = 5
+levels = 4
 kernel_size = (3, 3)
 convs = 3
-initial_features = 32
+initial_features = 16
 
-batch_norm = False
+batch_norm = True
 drop_out = None
 activation = 'elu'
 
 start = 0
-batch_size = 50
+batch_size = 30
 
 
 # Instances
