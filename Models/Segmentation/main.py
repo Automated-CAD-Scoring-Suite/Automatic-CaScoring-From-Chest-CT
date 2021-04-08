@@ -13,7 +13,7 @@ model_path = 'Model_Weights'
 gpu_name = tf.test.gpu_device_name()
 
 # Train Consts
-down_factor = 4
+down_factor = 8
 input_shape = (512//down_factor, 512//down_factor, 1)
 
 levels = 5
