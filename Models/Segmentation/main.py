@@ -48,6 +48,8 @@ callbacks = [
     tf.keras.callbacks.ReduceLROnPlateau()
 ]
 
+
+print("Training on ", gpu_name)
 # Training
 model.compile(optimizer='adam', loss=[focal_tversky_loss], metrics=['accuracy', dice_coef, tversky])
 
