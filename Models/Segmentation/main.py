@@ -15,7 +15,12 @@ import matplotlib.pyplot as plt
 Testing = False
 training = 'Data/Training'
 model_path = 'Model_Weights'
+validation = 'Data/Validation'
+
+
 gpu_name = tf.test.gpu_device_name()
+gpus = tf.config.experimental.list_physical_devices('GPU')
+tf.config.experimental.set_memory_growth(gpus[0], True)
 
 # Train Consts
 down_factor = 4
@@ -40,6 +45,8 @@ aug = NiftyAugmentor()
 gen = NiftyGen(training, batch_size=batch_size, batch_start=start,
                augmenter=aug, down_factor=down_factor)
 
+gen_val = NiftyGen(validation, batch_size=100, batch_start=0, augmenter=None, down_factor=down_factor)
+
 model = u_net(levels, convs, input_shape, kernel_size, activation=activation,
               batch_norm=batch_norm, drop_out=drop_out,
               initial_features=initial_features)
@@ -49,7 +56,7 @@ print(model.summary())
 callbacks = [
     cc.GarbageCollect(),
     tf.keras.callbacks.ModelCheckpoint(filepath=f'{model.name}_checkpoint.h5', save_freq='epoch'),
-    tf.keras.callbacks.EarlyStopping(monitor='dice', min_delta=0.001, patience=10),
+    tf.keras.callbacks.EarlyStopping(monitor='Dice', min_delta=0.001, patience=10),
     tf.keras.callbacks.ReduceLROnPlateau()
 ]
 
@@ -60,8 +67,7 @@ if not Testing:
     model.compile(optimizer='adam', loss=[Dice_Loss], metrics=['accuracy', Dice])
 
     with tf.device(gpu_name):
-        model.fit(gen, epochs=50, callbacks=callbacks)
-
+        model.fit(gen, epochs=30, callbacks=callbacks, validation_data=gen_val)
     model.save(f'Model_{model.name}.h5')
 
 if Testing:

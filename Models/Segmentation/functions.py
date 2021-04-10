@@ -1,7 +1,6 @@
 ##
 # Functions implemented for loss and optimization
 ##
-import tensorflow as tf
 import tensorflow.keras.backend as K
 
 
@@ -28,7 +27,7 @@ def Dice_Loss(y_true, y_pred, smooth=1):
     :param smooth: Smoothing Coefficient
     :return: Average Dice Loss over all Classes
     """
-    return K.mean(1 - Dice(y_true, y_pred, smooth))
+    return 1 - Dice(y_true, y_pred, smooth)
 
 
 if __name__ == '__main__':
