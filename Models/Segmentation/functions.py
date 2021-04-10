@@ -28,7 +28,7 @@ def Dice_Loss(y_true, y_pred, smooth=1):
     :param smooth: Smoothing Coefficient
     :return: Average Dice Loss over all Classes
     """
-    return np.mean(1 - Dice(y_true, y_pred, smooth))
+    return K.mean(1 - Dice(y_true, y_pred, smooth))
 
 
 if __name__ == '__main__':
