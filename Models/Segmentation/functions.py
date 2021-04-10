@@ -16,7 +16,7 @@ def Dice(y_true, y_pred, smooth=1):
     """
     intersection = 2 * K.abs(y_true * y_true)
     dice = (intersection + smooth) / (K.abs(y_true) + K.abs(y_pred) + smooth)
-    return np.mean(dice)
+    return K.mean(dice)
 
 
 def Dice_Loss(y_true, y_pred, smooth=1):
