@@ -4,41 +4,47 @@
 import tensorflow as tf
 import tensorflow.keras.backend as K
 
-beta = 0.25
-alpha = 0.25
-gamma = 2
-epsilon = 1e-5
-smooth = 1
 
-
-def dice_coef(y_true, y_pred, smooth=1):
+def Dice(y_true, y_pred, smooth=1):
     """
-    Dice = (2*|X & Y|)/ (|X|+ |Y|)
-         =  2*sum(|A*B|)/(sum(A^2)+sum(B^2))
-    ref: https://arxiv.org/pdf/1606.04797v1.pdf
+        Dice Coefficient Implementation
+        Dice = (2*|y_true * y_pred|)/(|y_true|+|y_pred|)
+    :param y_true: True Output
+    :param y_pred: Predicted Output
+    :param smooth: Smoothing Coefficient
+    :return:
     """
-    intersection = K.sum(K.abs(y_true * y_pred), axis=-1)
-    return (2. * intersection + smooth) / (K.sum(K.square(y_true),-1) + K.sum(K.square(y_pred), -1) + smooth)
+    intersection = 2 * np.abs(y_true * y_true)
+    dice = (intersection + smooth) / (K.abs(y_true) + K.abs(y_pred) + smooth)
+    return np.mean(dice)
 
 
-def tversky(y_true, y_pred, smooth=1, alpha=0.7):
-    y_true_pos = K.flatten(y_true)
-    y_pred_pos = K.flatten(y_pred)
-    true_pos = K.sum(y_true_pos * y_pred_pos)
-    false_neg = K.sum(y_true_pos * (1 - y_pred_pos))
-    false_pos = K.sum((1 - y_true_pos) * y_pred_pos)
-    return (true_pos + smooth) / (true_pos + alpha * false_neg + (1 - alpha) * false_pos + smooth)
+def Dice_Loss(y_true, y_pred, smooth=1):
+    """
+        Dice Loss Implementation
+        Dice_loss = 1 - (2*|y_true * y_pred|)/(|y_true|+|y_pred|)
+    :param y_true: True Output
+    :param y_pred: Predicted Output
+    :param smooth: Smoothing Coefficient
+    :return: Average Dice Loss over all Classes
+    """
+    return np.mean(1 - Dice(y_true, y_pred, smooth))
 
 
-def tversky_loss(y_true, y_pred):
-    return 1 - tversky(y_true, y_pred)
+if __name__ == '__main__':
+    import numpy as np
+    x = np.array([
+        [0, 0, 1, 1, 1, 1],
+        [0, 0, 1, 0, 0, 1],
+        [0, 0, 1, 0, 0, 1],
+        [0, 0, 1, 0, 0, 1],
+        [0, 0, 1, 0, 0, 1],
+        [0, 0, 1, 1, 1, 1],
+    ])
 
+    y = np.copy(x)
 
-def focal_tversky_loss(y_true, y_pred, gamma=0.75):
-    tv = tversky(y_true, y_pred)
-    return K.pow((1 - tv), gamma)
-
-
-def log_cosh_dice_loss(y_true, y_pred):
-    x = dice_coef(y_true, y_pred)
-    return tf.math.log((tf.exp(x) + tf.exp(-x)) / 2.0)
+    t = 2 * np.abs(y * x)
+    t = (t + 1) / (np.abs(x) + np.abs(y) + 1)
+    print(np.mean(t))
+    print(Dice(y, x))

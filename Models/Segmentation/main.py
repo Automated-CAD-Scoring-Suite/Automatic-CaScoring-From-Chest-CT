@@ -1,14 +1,19 @@
-##
+#
 # Main Segmentation
 ##
+import numpy as np
 
 from Generator import NiftyGen, NiftyAugmentor
 from unet import u_net
 import CustomCallbacks as cc
 import tensorflow as tf
-from functions import focal_tversky_loss, dice_coef, tversky
+from functions import Dice, Dice_Loss
+import nibabel as nib
+import matplotlib.pyplot as plt
 
-training = 'Data/Training/'
+
+Testing = False
+training = 'Data/Training'
 model_path = 'Model_Weights'
 gpu_name = tf.test.gpu_device_name()
 
@@ -49,12 +54,38 @@ callbacks = [
 ]
 
 
-print("Training on ", gpu_name)
-# Training
-model.compile(optimizer='adam', loss=[focal_tversky_loss], metrics=['accuracy', dice_coef, tversky])
+if not Testing:
+    print("Training on ", gpu_name)
+    # Training
+    model.compile(optimizer='adam', loss=[Dice_Loss], metrics=['accuracy', Dice])
 
+    with tf.device(gpu_name):
+        model.fit(gen, epochs=50, callbacks=callbacks)
 
-with tf.device(gpu_name):
-    model.fit(gen, epochs=50, callbacks=callbacks)
+    model.save(f'Model_{model.name}.h5')
 
-model.save(f'Model_{model.name}.h5')
+if Testing:
+    # Load Last Saved Model
+    model.load_weights(f'{model_path}/Model_{model.name}.h5')
+
+    # Load an Image Example
+    test_img = nib.load(f'./{training}/ct_train_1001/imaging.nii.gz').get_fdata()
+    test_seg = nib.load(f'./{training}/ct_train_1001/segmentation.nii.gz').get_fdata()
+
+    # Down Sample
+    test_img = test_img[::down_factor, ::down_factor, :]
+    test_seg = test_seg[::down_factor, ::down_factor, :]
+
+    test_img = test_img[:, :, 200]
+    test_seg = test_seg[:, :, 200]
+
+    test_img = np.expand_dims(test_img, axis=[0, -1])
+    test_seg = np.expand_dims(test_seg, axis=[0, -1])
+    test_pred = model.predict(test_img)
+
+    fig, ax = plt.subplots(1, 3, figsize=(20, 20))
+
+    ax[0].imshow(test_pred[0, :, :, 0], 'gray')
+    ax[1].imshow(test_img[0, :, :, 0], 'gray')
+    ax[2].imshow(test_seg[0, :, :, 0], 'gray')
+    plt.show()

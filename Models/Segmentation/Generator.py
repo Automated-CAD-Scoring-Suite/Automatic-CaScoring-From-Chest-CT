@@ -9,7 +9,7 @@ import random
 from scipy.ndimage import zoom, sobel
 from skimage.exposure import equalize_hist, adjust_gamma
 from functools import partial
-from numba import jit, cuda, vectorize
+
 
 # Augmenter Class
 class NiftyAugmentor:
@@ -19,6 +19,7 @@ class NiftyAugmentor:
         self.trans_laplace = partial(adjust_gamma, gamma=gamma)
         self.trans_sobel = sobel
         self.invert = lambda x: 1-x
+        self.filtered_result = None
 
         self.filters = {
             "equalize": [equalize, self.eq],
