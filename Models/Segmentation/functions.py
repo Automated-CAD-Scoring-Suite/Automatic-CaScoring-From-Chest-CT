@@ -14,7 +14,7 @@ def Dice(y_true, y_pred, smooth=1):
     :param smooth: Smoothing Coefficient
     :return:
     """
-    intersection = 2 * np.abs(y_true * y_true)
+    intersection = 2 * K.abs(y_true * y_true)
     dice = (intersection + smooth) / (K.abs(y_true) + K.abs(y_pred) + smooth)
     return np.mean(dice)
 
