@@ -49,7 +49,7 @@ print(model.summary())
 callbacks = [
     cc.GarbageCollect(),
     tf.keras.callbacks.ModelCheckpoint(filepath=f'{model.name}_checkpoint.h5', save_freq='epoch'),
-    tf.keras.callbacks.EarlyStopping(monitor='loss', min_delta=0.001, patience=10),
+    tf.keras.callbacks.EarlyStopping(monitor='dice', min_delta=0.001, patience=10),
     tf.keras.callbacks.ReduceLROnPlateau()
 ]
 
