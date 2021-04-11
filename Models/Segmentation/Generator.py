@@ -124,18 +124,16 @@ class NiftyGen(tf.keras.utils.Sequence):
             Folder, Apply Slicing, Dimension checks and Shuffling
         :return: Processed Image
         """
-        src = np.copy(img)
-
         # Scale Image in range of 0 - 1
         if self.scale:
-            src = self.range_scale(src)
+            img = self.range_scale(img)
         # Down Sample the image with the selected Factor
         if self.down_factor:
-            src = self.zoom3D(src, self.down_factor)
+            img = self.zoom3D(img, self.down_factor)
         # Shuffle the Images in the Z direction
         if self.shuffle:
-            src = self.ShuffleImg(src)
-        return src
+            img = self.ShuffleImg(img)
+        return img
 
     def ReshapeImage(self, img: np.ndarray, channels: int, segmentation: bool) -> np.ndarray:
         """
@@ -146,22 +144,21 @@ class NiftyGen(tf.keras.utils.Sequence):
                              is a segmentation image
         :return: Reshaped Image
         """
-        src = np.copy(img)
-
         if self.aug:
             if segmentation:
                 # In case of Segmentation image input
                 # Repeat the input segmentation to match
                 # Augmented CT Scan Image
-                src = np.repeat(src, self.filter_size, -1)
+                img = np.repeat(img, self.filter_size, -1)
             else:
                 # Apply the Augmentation Techniques in case of
                 # Input Original Image
-                src = self.aug.fit(src)
+                img = self.aug.fit(img)
+                img = img.astype("float32")
 
         # Reshape the Output Images to be compatible with Tensorflow Slicing System
         # (batch_size, Resolution, Resolution, Channels)
-        return src.reshape((self.batch_size * self.filter_size, src.shape[0], src.shape[1], channels))
+        return img.reshape((self.batch_size * self.filter_size, img.shape[0], img.shape[1], channels))
 
     def __getitem__(self, index: int) -> tuple:
         # Load Segmentation and Data in the Record
