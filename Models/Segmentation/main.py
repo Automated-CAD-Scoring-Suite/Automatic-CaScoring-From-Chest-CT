@@ -36,7 +36,7 @@ drop_out = None
 activation = 'elu'
 
 start = 0
-batch_size = 30
+batch_size = 10
 
 
 # Instances
