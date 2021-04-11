@@ -6,7 +6,7 @@ import numpy as np
 import os
 import tensorflow as tf
 import random
-from scipy.ndimage import zoom, sobel
+from scipy.ndimage import sobel
 from skimage.exposure import equalize_hist, adjust_gamma
 from functools import partial
 
@@ -14,11 +14,13 @@ from functools import partial
 # Augmenter Class
 class NiftyAugmentor:
     """Augmentor Class, Responsible for the application of different Augmentation Techniques"""
-    def __init__(self, equalize=True, adjust=True, sobel_transform=True, invert=True, gamma=2):
+
+    def __init__(self, equalize: bool = True, adjust: bool = True, sobel_transform: bool = True,
+                 invert: bool = True, gamma: int = 2):
         self.eq = equalize_hist
         self.trans_laplace = partial(adjust_gamma, gamma=gamma)
         self.trans_sobel = sobel
-        self.invert = lambda x: 1-x
+        self.invert = lambda x: 1 - x
         self.filtered_result = None
 
         self.filters = {
@@ -27,9 +29,8 @@ class NiftyAugmentor:
             "sobel_transform": [sobel_transform, self.trans_sobel],
             "invert": [invert, self.invert],
         }
-        self.vector = None
 
-    def fit(self, vector: np.ndarray):
+    def fit(self, vector: np.ndarray) -> np.ndarray:
         """
         Main Filtering Functions that takes input Image and apply
         chosen filters.
@@ -37,21 +38,21 @@ class NiftyAugmentor:
         :return: Filtered n-Dimensional Image
         """
         self.filtered_result = []
-        self.vector = np.copy(vector)
 
         for process in self.filters:
             if self.filters[process][0]:
-                self.filtered_result.append(self.filters[process][1](self.vector))
+                self.filtered_result.append(self.filters[process][1](vector))
 
         self.filtered_result = np.concatenate(self.filtered_result, -1)
-        return np.concatenate([self.vector, self.filtered_result], -1)
+        return np.concatenate([vector, self.filtered_result], -1)
 
 
 # Keras Sequence Class
 class NiftyGen(tf.keras.utils.Sequence):
     """Keras Sequence for loading Nifty image formats"""
-    def __init__(self, images_path, batch_size, batch_start, augmenter: NiftyAugmentor = None, scale=True, shuffle=True,
-                 down_factor=None, channels=1):
+
+    def __init__(self, images_path: str, batch_size: int, batch_start: int, augmenter: NiftyAugmentor = None,
+                 scale: bool = True, shuffle: bool = True, down_factor=None, channels: int = 1):
         self.path = images_path
         self.batch_size = batch_size
         self.batch_start = batch_start
@@ -61,12 +62,18 @@ class NiftyGen(tf.keras.utils.Sequence):
         self.scale = scale
         self.aug = augmenter
         self.records = sorted(os.listdir(self.path))
+        self.filter_size = 1
+        if self.aug:
+            # Calculate the number of filters added in
+            # Augmentation process and +1 for the
+            # Concatenation of the original image
+            self.filter_size += len(self.aug.filters)
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.records)
 
     @staticmethod
-    def range_scale(img):
+    def range_scale(img) -> np.ndarray:
         """
         Scale Given Image Array using HF range
         :param img: Input 3d Array
@@ -75,73 +82,110 @@ class NiftyGen(tf.keras.utils.Sequence):
         return (img - img.min()) / (img.max() - img.min())
 
     @staticmethod
-    def zoom3D(img, factor: float):
+    def zoom3D(img: np.ndarray, factor: float) -> np.ndarray:
         """
         Down Sample the input volume to desired shape
         :param img: Input Img
         :param factor: Down sampling Factor
         :return: Zoomed Img
         """
-        assert img.shape[0] == img.shape[1]
-        z_factor = (img.shape[0]*factor)/img.shape[-1]
-        return zoom(img, (factor, factor, z_factor))
+        return img[::factor, ::factor, :]
 
-    def __getitem__(self, index):
+    @staticmethod
+    def ShuffleImg(img: np.ndarray) -> np.ndarray:
+        """
+            Shuffle Input image in the z direction
+        :param img: Input Image nd array
+        :return: Shuffled Image
+        """
+        # Extract Indices of the z view
+        idx = np.arange(img.shape[-1])
+        np.random.shuffle(idx)
+
+        return img[:, :, idx]
+
+    def SliceImg(self, img: np.ndarray) -> np.ndarray:
+        """
+            Slice Given image with the batch size
+        :param img: Input Image
+        :return: Slice Array
+        """
+        # Check if Input Image is RGB or 1 Channel
+        if self.channels == 1:
+            return img[:, :, self.batch_start: self.batch_start + self.batch_size]
+        else:
+            # Taking Frames in the size of (batch_start - batch_size)
+            # Fill RGB Channels with the Same Slice
+            return np.repeat(img[:, :, self.batch_start: self.batch_start + self.batch_size], self.channels, -1)
+
+    def ProcessImage(self, img: np.ndarray) -> np.ndarray:
+        """
+            Process Input Image loaded from Local Training
+            Folder, Apply Slicing, Dimension checks and Shuffling
+        :return: Processed Image
+        """
+        src = np.copy(img)
+
+        # Scale Image in range of 0 - 1
+        if self.scale:
+            src = self.range_scale(src)
+        # Down Sample the image with the selected Factor
+        if self.down_factor:
+            src = self.zoom3D(src, self.down_factor)
+        # Shuffle the Images in the Z direction
+        if self.shuffle:
+            src = self.ShuffleImg(src)
+        return src
+
+    def ReshapeImage(self, img: np.ndarray, channels: int, segmentation: bool) -> np.ndarray:
+        """
+            Reshape the Image to be Compatible with TF Backend
+        :param img: Input Image
+        :param channels: Channels of the Reshaped Image
+        :param segmentation: Boolean indicates that the input image
+                             is a segmentation image
+        :return: Reshaped Image
+        """
+        src = np.copy(img)
+
+        if self.aug:
+            if segmentation:
+                # In case of Segmentation image input
+                # Repeat the input segmentation to match
+                # Augmented CT Scan Image
+                src = np.repeat(src, self.filter_size, -1)
+            else:
+                # Apply the Augmentation Techniques in case of
+                # Input Original Image
+                src = self.aug.fit(src)
+
+        # Reshape the Output Images to be compatible with Tensorflow Slicing System
+        # (batch_size, Resolution, Resolution, Channels)
+        return src.reshape((self.batch_size * self.filter_size, src.shape[0], src.shape[1], channels))
+
+    def __getitem__(self, index: int) -> tuple:
         # Load Segmentation and Data in the Record
         image_path = os.path.join(self.path, self.records[index])
         img = nib.load(os.path.join(image_path, 'imaging.nii.gz')).get_fdata()
         seg = nib.load(os.path.join(image_path, 'segmentation.nii.gz')).get_fdata()
 
         # Both Image and Segmentation must be with the same dimensions
-        assert (img.shape == seg.shape),\
+        assert (img.shape == seg.shape), \
             f'Images and Segmentation are with different Dimensions,{seg.shape} {img.shape}'
 
-        # Scale in the HF Range
-        if self.scale:
-            img = self.range_scale(img)
+        # Process the Scan and Segmentation Arrays
+        img = self.ProcessImage(img)
+        seg = self.ProcessImage(seg)
 
-            # Convert Two Arrays to Lower Data Types
-            img = img.astype('float32')
+        # Slice the Image with the given batch size
+        img = self.SliceImg(img)
+        seg = self.SliceImg(seg)
 
-        # Down sampling
-        if self.down_factor:
-            # Deprecating this implementation
-            # img = self.zoom3D(img, self.down_factor)
-            # seg = self.zoom3D(seg, self.down_factor)
-            img = img[0::self.down_factor, 0::self.down_factor, :]
-            seg = seg[0::self.down_factor, 0::self.down_factor, :]
+        # Reshape Both Arrays
+        seg = self.ReshapeImage(seg, channels=1, segmentation=True)
+        img = self.ReshapeImage(img, channels=1, segmentation=False)
 
-        # Shuffle Inputs
-        if self.shuffle:
-            # Extract Indices of the z view
-            idx = np.arange(img.shape[-1])
-            np.random.shuffle(idx)
-
-            # Shuffle the z view
-            img = img[:, :, idx]
-            seg = seg[:, :, idx]
-
-        # TODO: CONVERT to function, Enhance Readability
-
-        # Taking Frames in the size of (batch_start - batch_size)
-        # Fill RGB Channels with the Same Slice
-        if self.channels == 1:
-            img = img[:, :, self.batch_start: self.batch_start + self.batch_size]
-        else:
-            img = np.repeat(img[:, :, self.batch_start: self.batch_start + self.batch_size], self.channels, -1)
-
-        seg = seg[:, :, self.batch_start: self.batch_start + self.batch_size]
-
-        # For the Augmentation class input the image and concatenate the results
-        augmentation_size = len(self.aug.filters)+1
-        if self.aug:
-            img = self.aug.fit(img)
-            seg = np.repeat(seg, augmentation_size, -1)
-
-        # Reshape the Output Images to be compatible with Tensorflow Slicing System
-        # (batch_size, Resolution, Resolution, Channels)
-        return (img.reshape((self.batch_size*augmentation_size, img.shape[0], img.shape[1], self.channels)),
-                seg.reshape((self.batch_size*augmentation_size, img.shape[0], img.shape[1], 1)))
+        return img, seg
 
     def on_epoch_end(self):
         """
