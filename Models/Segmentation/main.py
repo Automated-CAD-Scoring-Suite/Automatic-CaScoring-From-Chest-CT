@@ -16,6 +16,7 @@ Testing = False
 training = 'Data/Training'
 model_path = 'Model_Weights'
 validation = 'Data/Validation'
+log_dir = './logs/'
 
 
 gpu_name = tf.test.gpu_device_name()
@@ -35,8 +36,8 @@ batch_norm = True
 drop_out = None
 activation = 'elu'
 
-start = 0
-batch_size = 10
+start = 100
+batch_size = 50
 
 
 # Instances
@@ -57,7 +58,8 @@ callbacks = [
     cc.GarbageCollect(),
     tf.keras.callbacks.ModelCheckpoint(filepath=f'{model.name}_checkpoint.h5', save_freq='epoch'),
     tf.keras.callbacks.EarlyStopping(monitor='Dice', min_delta=0.001, patience=10),
-    tf.keras.callbacks.ReduceLROnPlateau()
+    tf.keras.callbacks.ReduceLROnPlateau(),
+    tf.keras.callbacks.TensorBoard(log_dir=log_dir, profile_batch='10, 15')
 ]
 
 
