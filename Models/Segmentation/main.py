@@ -12,16 +12,25 @@ import nibabel as nib
 import matplotlib.pyplot as plt
 
 
-Testing = False
+Testing = True
 training = 'Data/Training'
 model_path = 'Model_Weights'
 validation = 'Data/Validation'
 log_dir = './logs/'
 
 
-gpu_name = tf.test.gpu_device_name()
-gpus = tf.config.experimental.list_physical_devices('GPU')
-tf.config.experimental.set_memory_growth(gpus[0], True)
+# TF Configurations
+gpus = tf.config.list_physical_devices('GPU')
+if gpus:
+  try:
+    # Currently, memory growth needs to be the same across GPUs
+    for gpu in gpus:
+      tf.config.experimental.set_memory_growth(gpu, True)
+    logical_gpus = tf.config.experimental.list_logical_devices('GPU')
+    print(len(gpus), "Physical GPUs,", len(logical_gpus), "Logical GPUs")
+  except RuntimeError as e:
+    # Memory growth must be set before GPUs have been initialized
+    print(e)
 
 # Train Consts
 down_factor = 4
@@ -36,7 +45,7 @@ batch_norm = True
 drop_out = None
 activation = 'elu'
 
-start = 100
+start = 0
 batch_size = 50
 
 
@@ -44,9 +53,9 @@ batch_size = 50
 aug = NiftyAugmentor()
 
 gen = NiftyGen(training, batch_size=batch_size, batch_start=start,
-               augmenter=aug, down_factor=down_factor)
+               augmenter=aug, down_factor=down_factor, save=True)
 
-gen_val = NiftyGen(validation, batch_size=100, batch_start=0, augmenter=None, down_factor=down_factor)
+gen_val = NiftyGen(validation, batch_size=batch_size, batch_start=start, augmenter=None, down_factor=down_factor)
 
 model = u_net(levels, convs, input_shape, kernel_size, activation=activation,
               batch_norm=batch_norm, drop_out=drop_out,
@@ -56,7 +65,7 @@ print(model.summary())
 
 callbacks = [
     cc.GarbageCollect(),
-    tf.keras.callbacks.ModelCheckpoint(filepath=f'{model.name}_checkpoint.h5', save_freq='epoch'),
+    tf.keras.callbacks.ModelCheckpoint(filepath=f'{model_path}/{model.name}_checkpoint.h5', save_freq='epoch'),
     tf.keras.callbacks.EarlyStopping(monitor='Dice', min_delta=0.001, patience=10),
     tf.keras.callbacks.ReduceLROnPlateau(),
     tf.keras.callbacks.TensorBoard(log_dir=log_dir, profile_batch='10, 15')
@@ -64,13 +73,13 @@ callbacks = [
 
 
 if not Testing:
-    print("Training on ", gpu_name)
+    print("Training on ", gpus[0].name)
     # Training
     model.compile(optimizer='adam', loss=[Dice_Loss], metrics=['accuracy', Dice])
 
-    with tf.device(gpu_name):
+    with tf.device("/"+gpus[0].name[10:]):
         model.fit(gen, epochs=30, callbacks=callbacks, validation_data=gen_val)
-    model.save(f'Model_{model.name}.h5')
+    model.save(f'{model_path}/Model_{model.name}.h5')
 
 if Testing:
     # Load Last Saved Model

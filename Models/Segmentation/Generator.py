@@ -9,7 +9,7 @@ import random
 from scipy.ndimage import sobel
 from skimage.exposure import equalize_hist, adjust_gamma
 from functools import partial
-
+import cv2
 
 # Augmenter Class
 class NiftyAugmentor:
