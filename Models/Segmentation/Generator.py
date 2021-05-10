@@ -1,7 +1,6 @@
 #
 # Implementation of a Custom Tensorflow Generator
 #
-import matplotlib.pyplot as plt
 import nibabel as nib
 import numpy as np
 import os
@@ -53,7 +52,7 @@ class NiftyGen(tf.keras.utils.Sequence):
     """Keras Sequence for loading Nifty image formats"""
 
     def __init__(self, images_path: str, batch_size: int, batch_start: int, augmenter: NiftyAugmentor = None,
-                 scale: bool = True, shuffle: bool = True, down_factor=None, channels: int = 1):
+                 scale: bool = True, shuffle: bool = True, down_factor=None, channels: int = 1, save: bool = False):
         self.path = images_path
         self.batch_size = batch_size
         self.batch_start = batch_start
@@ -62,6 +61,8 @@ class NiftyGen(tf.keras.utils.Sequence):
         self.shuffle = shuffle
         self.scale = scale
         self.aug = augmenter
+        self.save_batch = save
+        self.target = "Batches"
         self.records = sorted(os.listdir(self.path))
         self.filter_size = 1
         if self.aug:
@@ -136,11 +137,10 @@ class NiftyGen(tf.keras.utils.Sequence):
             img = self.ShuffleImg(img)
         return img
 
-    def ReshapeImage(self, img: np.ndarray, channels: int, segmentation: bool) -> np.ndarray:
+    def ReshapeImage(self, img: np.ndarray, segmentation: bool) -> np.ndarray:
         """
             Reshape the Image to be Compatible with TF Backend
         :param img: Input Image
-        :param channels: Channels of the Reshaped Image
         :param segmentation: Boolean indicates that the input image
                              is a segmentation image
         :return: Reshaped Image
@@ -156,7 +156,6 @@ class NiftyGen(tf.keras.utils.Sequence):
                 # Apply the Augmentation Techniques in case of
                 # Input Original Image
                 src = self.aug.fit(src)
-                # src = src.astype("float32")
 
         # Reshape the Output Images to be compatible with Tensorflow Slicing System
         # (batch_size, Resolution, Resolution, Channels)
@@ -183,8 +182,16 @@ class NiftyGen(tf.keras.utils.Sequence):
         seg = self.SliceImg(seg)
 
         # Reshape Both Arrays
-        seg = self.ReshapeImage(seg, channels=1, segmentation=True)
-        img = self.ReshapeImage(img, channels=1, segmentation=False)
+        seg = self.ReshapeImage(seg, segmentation=True)
+        img = self.ReshapeImage(img, segmentation=False)
+
+        # Convert to Uint range
+        img = (img*255.0).astype(np.uint8)
+        seg = (seg*255.0).astype(np.uint8)
+
+        if self.save_batch:
+            cv2.imwrite(os.path.join(self.target, f"Img_B{index}"), img[0, :, :])
+            cv2.imwrite(os.path.join(self.target, f"Seg_B{index}"), seg[0, :, :])
 
         return img, seg
 
@@ -196,9 +203,7 @@ class NiftyGen(tf.keras.utils.Sequence):
 
 
 if __name__ == '__main__':
-    from PIL import Image
     import cv2
-    import scipy
     # import matplotlib.pyplot as plt
     # img2 = nib.load('Data/Training/ct_train_1001/imaging.nii.gz').get_fdata()
     # seg2 = nib.load('Data/Training/ct_train_1001/segmentation.nii.gz').get_fdata()
@@ -242,24 +247,11 @@ if __name__ == '__main__':
     target = "TestingImages"
 
     count = 0
-    for img, seg in gen:
-        print(img.shape)
-        for s in range(img.shape[0]):
-            # plt.imsave(os.path.join(target, f"Img_{count}.png"), img[s, :, :, :].astype('uint8'), cmap='gray')
-            # plt.imsave(os.path.join(target, f"Seg_{count}.png"), seg[s, :, :, :].astype('uint8'), cmap='gray')
-            cv2.imwrite(os.path.join(target, f"Img_{count}.png"), (1-img[s, :, :]*255.0).astype('uint8'))
-            cv2.imwrite(os.path.join(target, f"Seg_{count}.png"), (seg[s, :, :]*255.0).astype('uint8'))
-            print(np.min(img[s, :, :, :]), np.max(img[s, :, :, :]))
-            print(img.dtype)
-            plt.imshow(img[s, :, :], 'gray')
-            plt.show()
-            # pil_seg = Image.fromarray((seg[s, :, :]*255.0).astype(np.uint8))
-            # pil_img = Image.fromarray((img[s, :, :]*255.0).astype(np.uint8))
-            #
-            # pil_img = pil_img.convert('L')
-            # pil_seg = pil_seg.convert('L')
-            #
-            # pil_img.save(os.path.join(target, f"Img_{count}.png"))
-            # pil_seg.save(os.path.join(target, f"Seg_{count}.png"))
-
+    for Img, Seg in gen:
+        print(Img.shape)
+        for s in range(Img.shape[0]):
+            print(count)
+            cv2.imwrite(os.path.join(target, f"Img_{count}.png"), Img[s, :, :])
+            cv2.imwrite(os.path.join(target, f"Seg_{count}.png"), Seg[s, :, :])
+            print(np.min(Img[s, :, :, :]), np.max(Img[s, :, :, :]))
         count += 1
