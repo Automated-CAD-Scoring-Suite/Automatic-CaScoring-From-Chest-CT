@@ -9,7 +9,7 @@ import random
 from scipy.ndimage import sobel
 from skimage.exposure import equalize_hist, adjust_gamma
 from functools import partial
-
+import cv2
 
 # Augmenter Class
 class NiftyAugmentor:
@@ -100,6 +100,7 @@ class NiftyGen(tf.keras.utils.Sequence):
         :param img: Input Image nd array
         :return: Shuffled Image
         """
+        np.random.seed(123)
         # Extract Indices of the z view
         idx = np.arange(img.shape[-1])
         np.random.shuffle(idx)
@@ -185,13 +186,14 @@ class NiftyGen(tf.keras.utils.Sequence):
         seg = self.ReshapeImage(seg, segmentation=True)
         img = self.ReshapeImage(img, segmentation=False)
 
-        # Convert to Uint range
-        img = (img*255.0).astype(np.uint8)
-        seg = (seg*255.0).astype(np.uint8)
+        # # Convert to Uint range
+        # img = (img*255.0).astype(np.uint8)
+        # seg = (seg*255.0).astype(np.uint8)
 
         if self.save_batch:
-            cv2.imwrite(os.path.join(self.target, f"Img_B{index}"), img[0, :, :])
-            cv2.imwrite(os.path.join(self.target, f"Seg_B{index}"), seg[0, :, :])
+            cv2.imwrite(os.path.join(self.target, f"Img_B{index}.png"), (img[0, :, :] * 255.0).astype(np.uint8))
+            cv2.imwrite(os.path.join(self.target, f"Seg_B{index}.png"), (seg[0, :, :] * 255.0).astype(np.uint8))
+
 
         return img, seg
 
