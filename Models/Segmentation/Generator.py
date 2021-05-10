@@ -194,7 +194,6 @@ class NiftyGen(tf.keras.utils.Sequence):
             cv2.imwrite(os.path.join(self.target, f"Img_B{index}.png"), (img[0, :, :] * 255.0).astype(np.uint8))
             cv2.imwrite(os.path.join(self.target, f"Seg_B{index}.png"), (seg[0, :, :] * 255.0).astype(np.uint8))
 
-
         return img, seg
 
     def on_epoch_end(self):
@@ -246,14 +245,16 @@ if __name__ == '__main__':
     # plt.show()
 
     gen = NiftyGen('./Data/Training', 50, 100, aug, down_factor=4)
-    target = "TestingImages"
+    print(gen[0][0].shape)
 
-    count = 0
-    for Img, Seg in gen:
-        print(Img.shape)
-        for s in range(Img.shape[0]):
-            print(count)
-            cv2.imwrite(os.path.join(target, f"Img_{count}.png"), Img[s, :, :])
-            cv2.imwrite(os.path.join(target, f"Seg_{count}.png"), Seg[s, :, :])
-            print(np.min(Img[s, :, :, :]), np.max(Img[s, :, :, :]))
-        count += 1
+    # target = "TestingImages"
+    #
+    # count = 0
+    # for Img, Seg in gen:
+    #     print(Img.shape)
+    #     for s in range(Img.shape[0]):
+    #         print(count)
+    #         cv2.imwrite(os.path.join(target, f"Img_{count}.png"), Img[s, :, :])
+    #         cv2.imwrite(os.path.join(target, f"Seg_{count}.png"), Seg[s, :, :])
+    #         print(np.min(Img[s, :, :, :]), np.max(Img[s, :, :, :]))
+    #     count += 1
