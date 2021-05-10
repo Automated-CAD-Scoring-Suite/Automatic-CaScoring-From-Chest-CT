@@ -246,3 +246,12 @@ Models/Segmentation/Model_Weights/Model_Unet_4x3_16F.h5
 Models/Segmentation/Model_Weights/Unet_2x4_16F_checkpoint.h5
 Models/Segmentation/Model_Weights/Unet_4x3_16F_checkpoint.h5
 Models/Segmentation/.vscode/settings.json
+Models/Segmentation/logs/train/events.out.tfevents.1620689254.DESKTOP-1VHQP9P.16424.0.v2
+Models/Segmentation/logs/train/plugins/profile/2021_05_10_23_29_17/DESKTOP-1VHQP9P.input_pipeline.pb
+Models/Segmentation/logs/train/plugins/profile/2021_05_10_23_29_17/DESKTOP-1VHQP9P.kernel_stats.pb
+Models/Segmentation/logs/train/plugins/profile/2021_05_10_23_29_17/DESKTOP-1VHQP9P.memory_profile.json.gz
+Models/Segmentation/logs/train/plugins/profile/2021_05_10_23_29_17/DESKTOP-1VHQP9P.overview_page.pb
+Models/Segmentation/logs/train/plugins/profile/2021_05_10_23_29_17/DESKTOP-1VHQP9P.tensorflow_stats.pb
+Models/Segmentation/logs/train/plugins/profile/2021_05_10_23_29_17/DESKTOP-1VHQP9P.trace.json.gz
+Models/Segmentation/logs/train/plugins/profile/2021_05_10_23_29_17/DESKTOP-1VHQP9P.xplane.pb
+Models/Segmentation/logs/validation/events.out.tfevents.1620689370.DESKTOP-1VHQP9P.16424.1.v2
