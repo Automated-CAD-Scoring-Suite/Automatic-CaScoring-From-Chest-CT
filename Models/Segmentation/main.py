@@ -55,7 +55,7 @@ aug = NiftyAugmentor()
 gen = NiftyGen(training, batch_size=batch_size, batch_start=start,
                augmenter=aug, down_factor=down_factor, save=True)
 
-gen_val = NiftyGen(validation, batch_size=100, batch_start=0, augmenter=None, down_factor=down_factor)
+gen_val = NiftyGen(validation, batch_size=batch_size, batch_start=start, augmenter=None, down_factor=down_factor)
 
 model = u_net(levels, convs, input_shape, kernel_size, activation=activation,
               batch_norm=batch_norm, drop_out=drop_out,

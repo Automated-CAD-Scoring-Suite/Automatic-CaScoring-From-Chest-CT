@@ -245,3 +245,4 @@ Models/Segmentation/Model_Weights/Model_Unet_2x4_16F.h5
 Models/Segmentation/Model_Weights/Model_Unet_4x3_16F.h5
 Models/Segmentation/Model_Weights/Unet_2x4_16F_checkpoint.h5
 Models/Segmentation/Model_Weights/Unet_4x3_16F_checkpoint.h5
+Models/Segmentation/.vscode/settings.json
