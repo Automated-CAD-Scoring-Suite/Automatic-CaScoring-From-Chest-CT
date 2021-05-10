@@ -1,6 +1,7 @@
 #
 # Implementation of a Custom Tensorflow Generator
 #
+import matplotlib.pyplot as plt
 import nibabel as nib
 import numpy as np
 import os
@@ -144,21 +145,24 @@ class NiftyGen(tf.keras.utils.Sequence):
                              is a segmentation image
         :return: Reshaped Image
         """
+        src = np.copy(img)
         if self.aug:
             if segmentation:
                 # In case of Segmentation image input
                 # Repeat the input segmentation to match
                 # Augmented CT Scan Image
-                img = np.repeat(img, self.filter_size, -1)
+                src = np.repeat(src, self.filter_size, -1)
             else:
                 # Apply the Augmentation Techniques in case of
                 # Input Original Image
-                img = self.aug.fit(img)
-                img = img.astype("float32")
+                src = self.aug.fit(src)
+                # src = src.astype("float32")
 
         # Reshape the Output Images to be compatible with Tensorflow Slicing System
         # (batch_size, Resolution, Resolution, Channels)
-        return img.reshape((self.batch_size * self.filter_size, img.shape[0], img.shape[1], channels))
+        src = np.moveaxis(src, -1, 0)
+        src = np.expand_dims(src, -1)
+        return src
 
     def __getitem__(self, index: int) -> tuple:
         # Load Segmentation and Data in the Record
@@ -192,35 +196,70 @@ class NiftyGen(tf.keras.utils.Sequence):
 
 
 if __name__ == '__main__':
+    from PIL import Image
+    import cv2
+    import scipy
     # import matplotlib.pyplot as plt
     # img2 = nib.load('Data/Training/ct_train_1001/imaging.nii.gz').get_fdata()
     # seg2 = nib.load('Data/Training/ct_train_1001/segmentation.nii.gz').get_fdata()
-
+    #
     # scale = NiftyGen.range_scale
     # img2 = scale(img2)
     # seg2 = seg2[:, :, 190: 195]
-
-    # aug = NiftyAugmentor()
+    #
+    aug = NiftyAugmentor()
     # res = aug.fit(img2[:, :, 190:195])
     # print(res.shape)
-
+    #
     # fig, ax = plt.subplots(6, 5, figsize=(30, 30))
-
+    #
     # s = 0
     # for i in range(5):
     #     for j in range(5):
     #         ax[i][j].imshow(res[:, :, s], 'gray')
     #         s += 1
-
+    # #
     # for i in range(5):
     #     ax[5][i].imshow(seg2[:, :, i], 'gray')
     # plt.show()
+    #
+    # res2 = np.moveaxis(res, -1, 0)
+    # res2 = np.expand_dims(res2, -1)
+    #
+    # fig2, ax2 = plt.subplots(6, 5, figsize=(30, 30))
+    #
+    # s = 0
+    # for i in range(5):
+    #     for j in range(5):
+    #         ax2[i][j].imshow(res2[s, :, :, :], 'gray')
+    #         s += 1
+    # #
+    # for i in range(5):
+    #     ax2[5][i].imshow(seg2[:, :, i], 'gray')
+    # plt.show()
 
-    # seg3 = np.repeat(seg2, 5, -1)
-    # print(seg3.shape)
-    # print(res.shape)
-    gen = NiftyGen('./Data/Training', 20, 0, NiftyAugmentor(), down_factor=4)
+    gen = NiftyGen('./Data/Training', 50, 100, aug, down_factor=4)
+    target = "TestingImages"
 
-    for i in range(len(gen)):
-        print("img", gen[i][0].shape)
-        print("seg", gen[i][1].shape)
+    count = 0
+    for img, seg in gen:
+        print(img.shape)
+        for s in range(img.shape[0]):
+            # plt.imsave(os.path.join(target, f"Img_{count}.png"), img[s, :, :, :].astype('uint8'), cmap='gray')
+            # plt.imsave(os.path.join(target, f"Seg_{count}.png"), seg[s, :, :, :].astype('uint8'), cmap='gray')
+            cv2.imwrite(os.path.join(target, f"Img_{count}.png"), (1-img[s, :, :]*255.0).astype('uint8'))
+            cv2.imwrite(os.path.join(target, f"Seg_{count}.png"), (seg[s, :, :]*255.0).astype('uint8'))
+            print(np.min(img[s, :, :, :]), np.max(img[s, :, :, :]))
+            print(img.dtype)
+            plt.imshow(img[s, :, :], 'gray')
+            plt.show()
+            # pil_seg = Image.fromarray((seg[s, :, :]*255.0).astype(np.uint8))
+            # pil_img = Image.fromarray((img[s, :, :]*255.0).astype(np.uint8))
+            #
+            # pil_img = pil_img.convert('L')
+            # pil_seg = pil_seg.convert('L')
+            #
+            # pil_img.save(os.path.join(target, f"Img_{count}.png"))
+            # pil_seg.save(os.path.join(target, f"Seg_{count}.png"))
+
+        count += 1
