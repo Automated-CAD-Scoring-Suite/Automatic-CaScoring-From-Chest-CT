@@ -3,16 +3,16 @@
 ##
 import numpy as np
 
-from Generator import NiftyGen, NiftyAugmentor
+import tensorflow as tf
+import nibabel as nib
 from unet import u_net
 import CustomCallbacks as cc
-import tensorflow as tf
 from functions import Dice, Dice_Loss
-import nibabel as nib
 import matplotlib.pyplot as plt
+from Generator import NiftyGen, NiftyAugmentor
 
 
-Testing = True
+Testing = False
 training = 'Data/Training'
 model_path = 'Model_Weights'
 validation = 'Data/Validation'
@@ -68,7 +68,8 @@ callbacks = [
     tf.keras.callbacks.ModelCheckpoint(filepath=f'{model_path}/{model.name}_checkpoint.h5', save_freq='epoch'),
     tf.keras.callbacks.EarlyStopping(monitor='Dice', min_delta=0.001, patience=10),
     tf.keras.callbacks.ReduceLROnPlateau(),
-    tf.keras.callbacks.TensorBoard(log_dir=log_dir, profile_batch='10, 15')
+    tf.keras.callbacks.TensorBoard(log_dir=log_dir, profile_batch='10, 15'),
+    cc.DisplayCallback()
 ]
 
 

@@ -1,14 +1,15 @@
 #
 # Implementation of a Custom Tensorflow Generator
 #
+
+import random
+import os
+from functools import partial
 import nibabel as nib
 import numpy as np
-import os
 import tensorflow as tf
-import random
 from scipy.ndimage import sobel
 from skimage.exposure import equalize_hist, adjust_gamma
-from functools import partial
 import cv2
 
 # Augmenter Class
