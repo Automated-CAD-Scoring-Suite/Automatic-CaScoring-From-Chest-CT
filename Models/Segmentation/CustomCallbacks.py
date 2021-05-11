@@ -38,17 +38,18 @@ class DisplayCallback(tf.keras.callbacks.Callback):
         img, seg = gen[0]
         print(f"Validating Volume with Shape {img.shape}")
 
-        self.model.load_weights(os.path.join(model_path, self.model.name))
+        self.model.load_weights(os.path.join(model_path, f"{self.model.name}_checkpoint.h5"))
         test_pred = self.model.predict(img)
 
+        print(f'prediction shape {test_pred.shape}')
         fig, ax = plt.subplots(5, 3, figsize=(30, 30))
 
         for i in range(5):
-            ax[i][0].plot(test_pred[i, :, :, :], 'gray')
+            ax[i][0].imshow(test_pred[i, :, :, :], 'gray')
             ax[i][0].set_title("Model Prediction")
-            ax[i][1].plot(seg[i, :, :, :], 'gray')
+            ax[i][1].imshow(seg[i, :, :, :], 'gray')
             ax[i][1].set_title("True Prediction")
-            ax[i][2].plot(img[i, :, :, :], 'gray')
+            ax[i][2].imshow(img[i, :, :, :], 'gray')
             ax[i][2].set_title("CT Scan")
 
         if not os.path.isdir(validation_figs):

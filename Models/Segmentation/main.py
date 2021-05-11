@@ -87,23 +87,14 @@ if Testing:
     model.load_weights(f'{model_path}/Model_{model.name}.h5')
 
     # Load an Image Example
-    test_img = nib.load(f'./{training}/ct_train_1001/imaging.nii.gz').get_fdata()
-    test_seg = nib.load(f'./{training}/ct_train_1001/segmentation.nii.gz').get_fdata()
-
-    # Down Sample
-    test_img = test_img[::down_factor, ::down_factor, :]
-    test_seg = test_seg[::down_factor, ::down_factor, :]
-
-    test_img = test_img[:, :, 200]
-    test_seg = test_seg[:, :, 200]
-
-    test_img = np.expand_dims(test_img, axis=[0, -1])
-    test_seg = np.expand_dims(test_seg, axis=[0, -1])
+    num = np.random.randint(0, 3)
+    test_img, test_seg = gen_val[num]
     test_pred = model.predict(test_img)
-
+    print(test_pred.shape)
+    
     fig, ax = plt.subplots(1, 3, figsize=(20, 20))
 
-    ax[0].imshow(test_pred[0, :, :, 0], 'gray')
-    ax[1].imshow(test_img[0, :, :, 0], 'gray')
-    ax[2].imshow(test_seg[0, :, :, 0], 'gray')
+    ax[0].imshow(test_pred[0, :, :, :], 'gray')
+    ax[1].imshow(test_img[0, :, :, :], 'gray')
+    ax[2].imshow(test_seg[0, :, :, :], 'gray')
     plt.show()
