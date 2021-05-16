@@ -34,7 +34,7 @@ class DisplayCallback(tf.keras.callbacks.Callback):
 
     def on_epoch_end(self, epoch, logs=None):
         # Load Image
-        gen = Gen.NiftyGen(validation, batch_size=5, batch_start=0, down_factor=4)
+        gen = Gen.NiftyGen(validation, batch_size=5, batch_start=0, down_factor=8)
         img, seg = gen[0]
         print(f"Validating Volume with Shape {img.shape}")
 

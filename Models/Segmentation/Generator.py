@@ -8,9 +8,10 @@ from functools import partial
 import nibabel as nib
 import numpy as np
 import tensorflow as tf
-from scipy.ndimage import sobel
+from scipy.ndimage import sobel, zoom
 from skimage.exposure import equalize_hist, adjust_gamma
 import cv2
+
 
 # Augmenter Class
 class NiftyAugmentor:
@@ -76,13 +77,21 @@ class NiftyGen(tf.keras.utils.Sequence):
         return len(self.records)
 
     @staticmethod
-    def range_scale(img) -> np.ndarray:
+    def range_scale(img, mode: str = '0-1') -> np.ndarray:
         """
         Scale Given Image Array using HF range
         :param img: Input 3d Array
+        :param mode: Range Mode either 0-1 or -1-1
         :return: Scaled Array
         """
-        return (img - img.min()) / (img.max() - img.min())
+        src = np.copy(img)
+        if mode == "-1-1":
+            src = np.clip(src/2048.0, -1, 1)
+        if mode == '0-1':
+            min_val = -1000
+            max_val = 400
+            src = (src - min_val) / (max_val - min_val)
+        return src
 
     @staticmethod
     def zoom3D(img: np.ndarray, factor: float) -> np.ndarray:
@@ -92,7 +101,10 @@ class NiftyGen(tf.keras.utils.Sequence):
         :param factor: Down sampling Factor
         :return: Zoomed Img
         """
-        return img[::factor, ::factor, :]
+        # return img[::factor, ::factor, :]
+        src = np.copy(img)
+        z_factor = (src.shape[-1] * factor)/src.shape[0]
+        return zoom(src, (1/factor, 1/factor, 1/z_factor))
 
     @staticmethod
     def ShuffleImg(img: np.ndarray) -> np.ndarray:
@@ -116,6 +128,7 @@ class NiftyGen(tf.keras.utils.Sequence):
         """
         # Check if Input Image is RGB or 1 Channel
         if self.channels == 1:
+
             return img[:, :, self.batch_start: self.batch_start + self.batch_size]
         else:
             # Taking Frames in the size of (batch_start - batch_size)
@@ -160,9 +173,11 @@ class NiftyGen(tf.keras.utils.Sequence):
                 src = self.aug.fit(src)
 
         # Reshape the Output Images to be compatible with Tensorflow Slicing System
-        # (batch_size, Resolution, Resolution, Channels)
-        src = np.moveaxis(src, -1, 0)
+        # (batch_size, H, W, D, Channels)
+        # src = np.moveaxis(src, -1, 0)
+        src = np.expand_dims(src, 0)
         src = np.expand_dims(src, -1)
+        print(f"Images with Shape {src.shape}")
         return src
 
     def __getitem__(self, index: int) -> tuple:
@@ -180,8 +195,8 @@ class NiftyGen(tf.keras.utils.Sequence):
         seg = self.ProcessImage(seg)
 
         # Slice the Image with the given batch size
-        img = self.SliceImg(img)
-        seg = self.SliceImg(seg)
+        # img = self.SliceImg(img)
+        # seg = self.SliceImg(seg)
 
         # Reshape Both Arrays
         seg = self.ReshapeImage(seg, segmentation=True)
@@ -205,7 +220,6 @@ class NiftyGen(tf.keras.utils.Sequence):
 
 
 if __name__ == '__main__':
-    import cv2
     # import matplotlib.pyplot as plt
     # img2 = nib.load('Data/Training/ct_train_1001/imaging.nii.gz').get_fdata()
     # seg2 = nib.load('Data/Training/ct_train_1001/segmentation.nii.gz').get_fdata()
@@ -245,7 +259,7 @@ if __name__ == '__main__':
     #     ax2[5][i].imshow(seg2[:, :, i], 'gray')
     # plt.show()
 
-    gen = NiftyGen('./Data/Training', 50, 100, aug, down_factor=4)
+    gen = NiftyGen('./Data/Training', 50, 100, aug, down_factor=8)
     print(gen[0][0].shape)
 
     # target = "TestingImages"
