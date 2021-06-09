@@ -54,6 +54,7 @@ class Infer:
 
     def predict(self, data: np.ndarray):
         slices = self.__prepare_data(data)
+        slices = self.range_scale(slices)
         res = self.model(slices)
         return self.__post_process(res, threshold=0.5)
 
@@ -77,4 +78,19 @@ class Infer:
         src[src <= threshold] = 0.0
         src[src > threshold] = 1.0
         src = np.moveaxis(src, 1, -1)
+        return src
+
+    @staticmethod
+    def range_scale(img) -> np.ndarray:
+        """
+            Scale Given Image Array using HF range
+        :param img: Input 3d Array
+        :return: Scaled Array
+        """
+        src = np.copy(img)
+        min_bound = -1024.0
+        max_bound = 1354.0
+        src = (src - min_bound) / (max_bound - min_bound)
+        src[src > 1] = 1.
+        src[src < 0] = 0.
         return src
