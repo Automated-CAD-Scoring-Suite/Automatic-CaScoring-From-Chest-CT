@@ -73,11 +73,12 @@ class Infer:
 
     @staticmethod
     def __post_process(source, threshold: float):
-        src = source.sigmoid().data.cpu().numpy().squeeze()
+        src = torch.nn.functional.upsample(source, size=(512, 512), mode='bilinear', align_corners=False)
+        src = src.sigmoid().data.cpu().numpy().squeeze()
         src = (src - src.min()) / (src.max() - src.min() + 1e-8)
         src[src <= threshold] = 0.0
         src[src > threshold] = 1.0
-        src = np.moveaxis(src, 1, -1)
+        src = np.moveaxis(src, 0, -1)
         return src
 
     @staticmethod
