@@ -60,12 +60,12 @@ class Infer:
     def __prepare_data(self, source: np.ndarray):
         src = np.copy(source)
         src_shape = src.shape
+        if len(src_shape) == 2:
+            src = np.expand_dims(src, -1)
         src = self.range_scale(src)
         src = zoom(src, (self.shape / src_shape[0], self.shape / src_shape[0], 1))
         print(src.shape)
         src = np.expand_dims(src, 0)
-        if len(src_shape) == 2:
-            src = np.expand_dims(src, -1)
         if self.channels == 1:
             src = np.repeat(src, 3, 0)
         print(src.shape)
