@@ -54,13 +54,13 @@ class Infer:
 
     def predict(self, data: np.ndarray):
         slices = self.__prepare_data(data)
-        slices = self.range_scale(slices)
         res = self.model(slices)
         return self.__post_process(res, threshold=0.5)
 
     def __prepare_data(self, source: np.ndarray):
         src = np.copy(source)
         src_shape = src.shape
+        src = self.range_scale(src)
         src = zoom(src, (self.shape / src_shape[0], self.shape / src_shape[0], 1))
         print(src.shape)
         src = np.expand_dims(src, 0)
@@ -95,3 +95,5 @@ class Infer:
         src[src > 1] = 1.
         src[src < 0] = 0.
         return src
+
+if __name__ == '__main__':
