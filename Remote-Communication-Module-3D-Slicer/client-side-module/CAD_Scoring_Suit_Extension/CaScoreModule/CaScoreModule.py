@@ -1,22 +1,25 @@
-import os, sys
-import unittest
 import logging
-import vtk, qt, ctk, slicer
+import os
+import sys
+import time
+from io import BytesIO
+
+import numpy as np
+import requests
+import slicer
+import vtk
+from PIL import Image
 from slicer.ScriptedLoadableModule import *
 from slicer.util import VTKObservationMixin
 
 # Processing Packages
 
-import numpy as np
-from PIL import Image
-from io import BytesIO
-import requests
-
 RepoRoot = os.path.dirname(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))))
 sys.path.append(RepoRoot)
-from Models.crop_roi import get_coords
 
+
+# from Models.Segmentation.Inference import Infer
 
 #
 # CaScoreModule
@@ -66,7 +69,6 @@ def registerSampleData():
 
     # To ensure that the source code repository remains small (can be downloaded and installed quickly)
     # it is recommended to store data sets that are larger than a few MB in a Github release.
-
 
     # TODO Add sample data for test
 
@@ -297,11 +299,11 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         Handles Changes Processing Location Settings
         """
 
-        if (self.ui.LocalProcessingRadio.isChecked()):
+        if self.ui.LocalProcessingRadio.isChecked():
             self.ui.URLLineEdit.setDisabled(True)
             self.LocalProcessing = True
 
-        elif (self.ui.OnlineProcessingRadio.isChecked()):
+        elif self.ui.OnlineProcessingRadio.isChecked():
             self.ui.URLLineEdit.setEnabled(True)
             self.LocalProcessing = False
 
@@ -309,23 +311,22 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         """
     Run processing when user clicks "Apply" button.
     """
+        startTime = time.time()
+        logging.info('Processing started')
+
         try:
 
             # Compute output
             self.logic.process(self.ui.inputSelector.currentNode(), self.LocalProcessing,
                                self.ui.URLLineEdit.text)
 
-            # Compute inverted output (if needed)
-            # if self.ui.invertedOutputSelector.currentNode():
-            #     # If additional output volume is selected then result with inverted threshold is written there
-            #     self.logic.process(self.ui.inputSelector.currentNode(), self.ui.invertedOutputSelector.currentNode(),
-            #                        self.ui.imageThresholdSliderWidget.value, not self.ui.invertOutputCheckBox.checked,
-            #                        showResult=False)
-
         except Exception as e:
             slicer.util.errorDisplay("Failed to compute results: " + str(e))
             import traceback
             traceback.print_exc()
+
+        stopTime = time.time()
+        logging.info('Processing completed in {0:.2f} seconds'.format(stopTime - startTime))
 
 
 #
@@ -395,7 +396,6 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
         if not inputVolume:
             raise ValueError("Input volume is invalid")
 
-        import time
         startTime = time.time()
         logging.info('Processing started')
 
@@ -405,6 +405,8 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
         VolumeShape = VolumeArray.shape
 
         # Cropping Pattern Start
+        # CompressedArray = BytesIO()
+        # np.savez_compressed(CompressedArray, a=VolumeArray)
 
         # Axial, Sagittal, Coronal
         Names = ["Ax1", "Ax2", "Ax3", "Sag1", "Sag2", "Sag3", "Cor1", "Cor2", "Cor3"]
@@ -452,9 +454,21 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
             Coordinates = SliceSendReq.json()["Coor"]
             logging.info(f"Received Cropping Coordinates From Online Server")
         else:
-            for x in range(0, 3):
-                print(x)
-                Coordinates.append(get_coords(RawSliceArrays[x]))
+            # model = Infer(trace_path=RepoRoot+"/Models/Segmentation/model_arch.pth",
+            #               model_path=RepoRoot+"/Models/Segmentation/HarD-MSEG-best.pth")
+            # res = model.predict(np.asarray(RawSliceArrays[0]))
+            # # for x in range(0, 3):
+            # #     print(x)
+            # #     Coordinates.append(get_coords(RawSliceArrays[x]))
+            # import matplotlib.pyplot as plt
+            # fig, ax = plt.subplots(2, 2)
+            # ax[0][0].imshow(res[0], cmap='gray')
+            #
+            # ax[0][1].imshow(res[0], cmap='gray')
+            #
+            # ax[1][0].imshow(res[0], cmap='gray')
+            # plt.show()
+            # Coordinates.append(get_coords(res))
             logging.info(f"Cropping Coordinates Calculated Locally")
 
         logging.info(f"The Cropping Coordinates Are {Coordinates}")
@@ -463,18 +477,114 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
         # Start Cropping
         # Determine Correct Cropping Coordinates
 
-        x1 = np.minimum(Coordinates[0][0], Coordinates[2][0])
-        x2 = np.maximum(Coordinates[0][1], Coordinates[2][1])
-        y1 = np.minimum(Coordinates[0][2], Coordinates[1][0])
-        y2 = np.maximum(Coordinates[0][3], Coordinates[1][1])
-        z1 = np.minimum(Coordinates[1][2], Coordinates[2][2])
-        z2 = np.maximum(Coordinates[1][3], Coordinates[2][3])
+        # x1 = np.minimum(Coordinates[0][0], Coordinates[2][0])
+        # x2 = np.maximum(Coordinates[0][1], Coordinates[2][1])
+        # y1 = np.minimum(Coordinates[0][2], Coordinates[1][0])
+        # y2 = np.maximum(Coordinates[0][3], Coordinates[1][1])
+        # z1 = np.minimum(Coordinates[1][2], Coordinates[2][2])
+        # z2 = np.maximum(Coordinates[1][3], Coordinates[2][3])
+        x1 = Coordinates[0] - 20
+        x2 = Coordinates[1] + 20
+        y1 = Coordinates[2] - 20
+        y2 = Coordinates[3] + 20
 
-        logging.info(f"The Cropping Coordinates Are X->{x1}:{x2}, Y->{y1}:{y2}, Z->{z1}:{z2}")
+        # logging.info(f"The Cropping Coordinates Are X->{x1}:{x2}, Y->{y1}:{y2}, Z->{z1}:{z2}")
+        logging.info(f"The Cropping Coordinates Are X->{x1}:{x2}, Y->{y1}:{y2}")
         print(VolumeShape)
-        # slicer.util.updateVolumeFromArray(inputVolume, VolumeArray[z1:z2, x1:x2, y1:y2])
+        slicer.util.updateVolumeFromArray(inputVolume, VolumeArray[:, x1:x2, y1:y2])
+        logging.info(f"Cropped!")
         stopTime = time.time()
         logging.info('Processing completed in {0:.2f} seconds'.format(stopTime - startTime))
+        # LabelVolume Tests
+        # imageOrigin = [0.0, 0.0, 0.0]
+        # imageSpacing = [0.4883, 0.4883, 2.5]
+        # imageDirections = [[-1, 0, 0], [0, -1, 0], [0, 0, -1]]
+        # a = np.zeros([VolumeShape[0], VolumeShape[1], VolumeShape[2]])
+        # a[0:VolumeShape[0], 0:VolumeShape[1], 0:VolumeShape[2]] = 1
+        # print(a)
+        # LabelmapVolumeNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLLabelMapVolumeNode', 'Heart-Label')
+        # LabelmapVolumeNode.SetOrigin(imageOrigin)
+        # LabelmapVolumeNode.SetSpacing(imageSpacing)
+        # LabelmapVolumeNode.SetIJKToRASDirections(imageDirections)
+        # slicer.util.updateVolumeFromArray(LabelmapVolumeNode, a)
+        # LabelmapVolumeNode.CreateDefaultDisplayNodes()
+        # LabelmapVolumeNode.CreateDefaultStorageNode()
+        # slicer.util.loadLabelVolume(r'c:\Users\msliv\Documents\test.nrrd')
+
+    def Segment(self, inputVolume, LocalProcessing=True, ProcessingURL="http://localhost:5000", Partial=True):
+
+        SegmentStart = time.time()
+
+        if not inputVolume:
+            raise ValueError("Input volume is invalid")
+            # Convert Volume To NumPy Array
+
+        VolumeArray = np.array(slicer.util.arrayFromVolume(inputVolume))
+        VolumeShape = VolumeArray.shape
+
+        if Partial:
+            # Axial, Sagittal, Coronal
+            Names = ["Ax1", "Ax2", "Ax3", "Sag1", "Sag2", "Sag3", "Cor1", "Cor2", "Cor3"]
+            files = {}
+            data = {}
+            RawSliceArrays = [[], [], []]
+            Coordinates = []
+            # Prepare Slices
+            for i in range(3):
+                Mid = int(VolumeShape[i] / 2)
+                if i == 0:
+                    logging.info(f"Preparing Axial Slices Number {Mid - 1}, {Mid}, {Mid + 1}")
+                elif i == 1:
+                    logging.info(f"Preparing Sagittal Slices Number {Mid - 1}, {Mid}, {Mid + 1}")
+                elif i == 2:
+                    logging.info(f"Preparing Coronal Slices Number {Mid - 1}, {Mid}, {Mid + 1}")
+                for j in range(-1, 2):
+                    if i == 0:
+                        # Prepare Axial Slices
+                        Arr = VolumeArray[Mid + j, :, :]
+                    elif i == 1:
+                        # Prepare Sagittal Slices
+                        Arr = VolumeArray[:, Mid + j, :]
+                    elif i == 2:
+                        # Prepare Coronal Slices
+                        Arr = VolumeArray[:, :, Mid + j]
+                    RawSliceArrays[i].append(Arr)
+                    if not LocalProcessing:
+                        ArrS = Arr.min()
+                        # Shift Array Values if There Exists -Ve Values, since -ve values are lost during PNG conversion,
+                        # and store the shift value to be sent
+                        if ArrS < 0:
+                            Arr -= ArrS
+                            data[Names[0]] = ArrS
+                        else:
+                            data[Names[0]] = 0
+                        SliceImg = Image.fromarray(Arr)
+                        SliceBytes = BytesIO()
+                        SliceImg.save(SliceBytes, format="PNG")
+                        SliceBytes.seek(0, 0)
+                        files[Names.pop(0)] = SliceBytes
+
+            if not LocalProcessing:
+                SliceSendReq = requests.post(ProcessingURL + "/segment/slices", files=files, data=data)
+                Coordinates = SliceSendReq.json()["Coor"]
+                logging.info(f"Received Cropping Coordinates From Online Server")
+            else:
+                # model = Infer(trace_path=RepoRoot+"/Models/Segmentation/model_arch.pth",
+                #               model_path=RepoRoot+"/Models/Segmentation/HarD-MSEG-best.pth")
+                # res = model.predict(np.asarray(RawSliceArrays[0]))
+                # # for x in range(0, 3):
+                # #     print(x)
+                # #     Coordinates.append(get_coords(RawSliceArrays[x]))
+                # import matplotlib.pyplot as plt
+                # fig, ax = plt.subplots(2, 2)
+                # ax[0][0].imshow(res[0], cmap='gray')
+                #
+                # ax[0][1].imshow(res[0], cmap='gray')
+                #
+                # ax[1][0].imshow(res[0], cmap='gray')
+                # plt.show()
+                # Coordinates.append(get_coords(res))
+                logging.info(f"Cropping Coordinates Calculated Locally")
 
 
 #

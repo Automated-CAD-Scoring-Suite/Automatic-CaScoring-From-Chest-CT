@@ -11,6 +11,7 @@ ParentDir = os.path.dirname(CurrentDir)
 RepoRoot = os.path.dirname(ParentDir)
 sys.path.append(RepoRoot)
 from Models.crop_roi import get_coords
+from Models.Segmentation.Inference import Infer
 
 app = Flask(__name__)
 
@@ -58,18 +59,27 @@ def GetSlice():
                 SliceArray = np.array(Slice, dtype="int16")
                 SliceArray += int(shift[SliceName])
                 if "Ax" in SliceName:
-                    AxSlices.append(SliceArray)
-                elif "Sag" in SliceName:
-                    SagSlices.append(SliceArray)
-                elif "Cor" in SliceName:
-                    CorSlices.append(SliceArray)
-
+                    model = Infer(trace_path=RepoRoot + "/Models/Segmentation/model_arch.pth",
+                                  model_path=RepoRoot + "/Models/Segmentation/HarD-MSEG-best.pth",
+                                  axis=-1, slices=1, shape=512)
+                    res = model.predict(SliceArray)
+                    # import matplotlib.pyplot as plt
+                    # fig, ax = plt.subplots(1, 1)
+                    # ax[0][0].imshow(res, cmap='gray')
+                    # plt.show()
+                    AxSlices.append(res)
+                # if "Ax" in SliceName:
+                #     AxSlices.append(res)
+                # elif "Sag" in SliceName:
+                #     SagSlices.append(res)
+                # elif "Cor" in SliceName:
+                #     CorSlices.append(res)
 
             AxCoor = [int(i) for i in get_coords(AxSlices)]
-            SagCoor = [int(i) for i in get_coords(SagSlices)]
-            CorCoor = [int(i) for i in get_coords(CorSlices)]
-            Coor = [AxCoor, SagCoor, CorCoor]
-            return jsonify({"Coor": Coor})
+            # SagCoor = [int(i) for i in get_coords(SagSlices)]
+            # CorCoor = [int(i) for i in get_coords(CorSlices)]
+            # Coor = [AxCoor, SagCoor, CorCoor]
+            return jsonify({"Coor": AxCoor})
     return "Good"
 
 
