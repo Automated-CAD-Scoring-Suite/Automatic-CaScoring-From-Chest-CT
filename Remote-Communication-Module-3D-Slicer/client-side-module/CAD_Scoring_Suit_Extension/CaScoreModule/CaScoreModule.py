@@ -521,6 +521,7 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
 
         VolumeArray = np.array(slicer.util.arrayFromVolume(inputVolume))
         VolumeShape = VolumeArray.shape
+        SegmentedSlices = []
 
         if Partial:
             # Axial, Sagittal, Coronal
@@ -551,8 +552,8 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
                     RawSliceArrays[i].append(Arr)
                     if not LocalProcessing:
                         ArrS = Arr.min()
-                        # Shift Array Values if There Exists -Ve Values, since -ve values are lost during PNG conversion,
-                        # and store the shift value to be sent
+                        # Shift Array Values if There Exists -Ve Values, since -ve values are lost during PNG
+                        # conversion, and store the shift value to be sent
                         if ArrS < 0:
                             Arr -= ArrS
                             data[Names[0]] = ArrS
@@ -566,27 +567,41 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
 
             if not LocalProcessing:
                 SliceSendReq = requests.post(ProcessingURL + "/segment/slices", files=files, data=data)
-                Coordinates = SliceSendReq.json()["Coor"]
-                logging.info(f"Received Cropping Coordinates From Online Server")
+                SegmentedSlices = np.load(SliceSendReq.content)
+                logging.info(f"Segmented Slices Received From Server")
+                # logging.info(f"Received Cropping Coordinates From Online Server")
             else:
                 # model = Infer(trace_path=RepoRoot+"/Models/Segmentation/model_arch.pth",
                 #               model_path=RepoRoot+"/Models/Segmentation/HarD-MSEG-best.pth")
-                # res = model.predict(np.asarray(RawSliceArrays[0]))
-                # # for x in range(0, 3):
-                # #     print(x)
-                # #     Coordinates.append(get_coords(RawSliceArrays[x]))
-                # import matplotlib.pyplot as plt
-                # fig, ax = plt.subplots(2, 2)
-                # ax[0][0].imshow(res[0], cmap='gray')
-                #
-                # ax[0][1].imshow(res[0], cmap='gray')
-                #
-                # ax[1][0].imshow(res[0], cmap='gray')
-                # plt.show()
+                # SegmentedSlices = model.predict(np.asarray(RawSliceArrays[0]))
+                # for x in range(0, 3):
+                #     print(x)
+                #     Coordinates.append(get_coords(RawSliceArrays[x]))
+
                 # Coordinates.append(get_coords(res))
-                logging.info(f"Cropping Coordinates Calculated Locally")
+                logging.info(f"Segmentation Computed Locally")
+                # logging.info(f"Cropping Coordinates Calculated Locally")
+        else:
+            CompressedVolume = BytesIO()
+            np.savez_compressed(CompressedVolume, a=VolumeArray)
+            CompressedVolume.seek(0)
+            if not LocalProcessing:
+                SliceSendReq = requests.post(ProcessingURL + "/segment/slices", data={"Volume": CompressedVolume})
+                SegmentedSlices = np.load(SliceSendReq.content)
+                logging.info(f"Segmented Slices Received From Server")
+                # logging.info(f"Received Cropping Coordinates From Online Server")
+            else:
+                # model = Infer(trace_path=RepoRoot+"/Models/Segmentation/model_arch.pth",
+                #               model_path=RepoRoot+"/Models/Segmentation/HarD-MSEG-best.pth")
+                # SegmentedSlices = model.predict(np.asarray(RawSliceArrays[0]))
+                # for x in range(0, 3):
+                #     print(x)
+                #     Coordinates.append(get_coords(RawSliceArrays[x]))
+                # Coordinates.append(get_coords(res))
+                logging.info(f"Segmentation Computed Locally")
+                # logging.info(f"Cropping Coordinates Calculated Locally")
 
-
+        return SegmentedSlices
 #
 # CaScoreModuleTest
 #

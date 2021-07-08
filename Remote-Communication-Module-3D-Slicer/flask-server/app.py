@@ -1,10 +1,11 @@
 import os
 import sys
+from io import BytesIO
 
 import matplotlib.pyplot as plt
 import numpy as np
 from PIL import Image
-from flask import Flask, request, after_this_request, jsonify
+from flask import Flask, request, after_this_request, jsonify, send_file
 
 CurrentDir = os.path.dirname(os.path.realpath(__file__))
 ParentDir = os.path.dirname(CurrentDir)
@@ -80,6 +81,47 @@ def GetSlice():
             # CorCoor = [int(i) for i in get_coords(CorSlices)]
             # Coor = [AxCoor, SagCoor, CorCoor]
             return jsonify({"Coor": AxCoor})
+    return "Good"
+
+@app.route('/segment/slices', methods=['POST'])
+def SegmentSlices():
+    if request.method == 'POST':
+        # Names of Received Slices
+        Names = ["Ax1", "Ax2", "Ax3", "Sag1", "Sag2", "Sag3", "Cor1", "Cor2", "Cor3"]
+        # print(request.files)
+        # Get first Axial Slice Data & Shift Value
+        slices = request.files
+        shift = request.form
+        # Open Slice & reset shift
+        if slices:
+            AxSlices = []
+            SagSlices = []
+            CorSlices = []
+
+            for SliceName in Names:
+                Slice = Image.open(slices[SliceName])
+                SliceArray = np.array(Slice, dtype="int16")
+                SliceArray += int(shift[SliceName])
+                if "Ax" in SliceName:
+                    model = Infer(trace_path=RepoRoot + "/Models/Segmentation/model_arch.pth",
+                                  model_path=RepoRoot + "/Models/Segmentation/HarD-MSEG-best.pth",
+                                  axis=-1, slices=1, shape=512)
+                    res = model.predict(SliceArray)
+                    AxSlices.append(res)
+                # if "Ax" in SliceName:
+                #     AxSlices.append(res)
+                # elif "Sag" in SliceName:
+                #     SagSlices.append(res)
+                # elif "Cor" in SliceName:
+                #     CorSlices.append(res)
+            CompressedArray = BytesIO()
+            np.savez_compressed(CompressedArray, a=AxSlices)
+            CompressedArray.seek(0)
+            # AxCoor = [int(i) for i in get_coords(AxSlices)]
+            # SagCoor = [int(i) for i in get_coords(SagSlices)]
+            # CorCoor = [int(i) for i in get_coords(CorSlices)]
+            # Coor = [AxCoor, SagCoor, CorCoor]
+            return send_file(CompressedArray)
     return "Good"
 
 
