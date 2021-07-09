@@ -317,8 +317,10 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         try:
 
             # Compute output
-            self.logic.process(self.ui.inputSelector.currentNode(), self.LocalProcessing,
-                               self.ui.URLLineEdit.text)
+            # self.logic.process(self.ui.inputSelector.currentNode(), self.LocalProcessing,
+            #                    self.ui.URLLineEdit.text)
+            Segmentation = self.logic.Segment(self.ui.inputSelector.currentNode(), self.LocalProcessing,
+                                              self.ui.URLLineEdit.text, False)
 
         except Exception as e:
             slicer.util.errorDisplay("Failed to compute results: " + str(e))
@@ -583,11 +585,13 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
                 # logging.info(f"Cropping Coordinates Calculated Locally")
         else:
             CompressedVolume = BytesIO()
-            np.savez_compressed(CompressedVolume, a=VolumeArray)
+            np.savez_compressed(CompressedVolume, Volume=VolumeArray)
             CompressedVolume.seek(0)
             if not LocalProcessing:
-                SliceSendReq = requests.post(ProcessingURL + "/segment/slices", data={"Volume": CompressedVolume})
-                SegmentedSlices = np.load(SliceSendReq.content)
+                SliceSendReq = requests.post(ProcessingURL + "/segment/volume", files={"Volume": CompressedVolume})
+                Data = np.load(SliceSendReq.content)
+                SegmentedSlices = np.copy(Data['Segmentation'])
+                Data.close()
                 logging.info(f"Segmented Slices Received From Server")
                 # logging.info(f"Received Cropping Coordinates From Online Server")
             else:
@@ -602,6 +606,8 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
                 # logging.info(f"Cropping Coordinates Calculated Locally")
 
         return SegmentedSlices
+
+
 #
 # CaScoreModuleTest
 #

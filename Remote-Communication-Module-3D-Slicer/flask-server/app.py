@@ -83,6 +83,7 @@ def GetSlice():
             return jsonify({"Coor": AxCoor})
     return "Good"
 
+
 @app.route('/segment/slices', methods=['POST'])
 def SegmentSlices():
     if request.method == 'POST':
@@ -122,6 +123,42 @@ def SegmentSlices():
             # CorCoor = [int(i) for i in get_coords(CorSlices)]
             # Coor = [AxCoor, SagCoor, CorCoor]
             return send_file(CompressedArray)
+    return "Good"
+
+
+@app.route('/segment/volume', methods=['POST'])
+def SegmentVolume():
+    if request.method == 'POST':
+        Segmentation = []
+
+        # Load Model
+        model = Infer(trace_path=RepoRoot + "/Models/Segmentation/model_arch.pth",
+                      model_path=RepoRoot + "/Models/Segmentation/HarD-MSEG-best.pth",
+                      axis=-1, slices=1, shape=512)
+
+        # Get Compressed Volume
+        VolumeCompressed = request.files["Volume"]
+
+        # Decompress & Get Volume Array
+        Data = np.load(VolumeCompressed)
+        VolumeArray = Data['Volume']
+
+        # Loop Over Axial Slices
+        for i in range(VolumeArray.shape[0]):
+            # Segment Heart in Slice
+            res = model.predict(VolumeArray[i, :, :])
+            Segmentation.append(res)
+
+        # Compress Segmentation Array
+        CompressedArray = BytesIO()
+        np.savez_compressed(CompressedArray, Segmentation=Segmentation)
+        CompressedArray.seek(0)
+
+        # Close The Loaded npz File To Prevent Memory Leaks
+        Data.close()
+
+        return send_file(CompressedArray)
+
     return "Good"
 
 
