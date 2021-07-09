@@ -67,11 +67,11 @@ class Infer:
             src = np.expand_dims(src, -1)
         src = self.range_scale(src)
         src = zoom(src, (self.shape / src_shape[0], self.shape / src_shape[0], 1))
-        print(src.shape)
+        # print(src.shape)
         src = np.expand_dims(src, 0)
         if self.channels == 1:
             src = np.repeat(src, 3, 0)
-        print(src.shape)
+        # print(src.shape)
         src = np.moveaxis(src, -1, 0)
         src = torch.Tensor(src)
         return src
