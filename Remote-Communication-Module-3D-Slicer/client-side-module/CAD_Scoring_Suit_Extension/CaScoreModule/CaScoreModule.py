@@ -3,6 +3,7 @@ import os
 import sys
 import time
 from io import BytesIO
+import importlib
 
 import numpy as np
 import requests
@@ -316,6 +317,10 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         try:
 
+            # Check For Dependencies & Install Missing Ones
+            if self.LocalProcessing:
+                self.logic.CheckDependencies()
+
             # Compute output
             # self.logic.process(self.ui.inputSelector.currentNode(), self.LocalProcessing,
             #                    self.ui.URLLineEdit.text)
@@ -606,6 +611,18 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
                 # logging.info(f"Cropping Coordinates Calculated Locally")
 
         return SegmentedSlices
+
+    def CheckDependencies(self):
+
+        # Install PyTorch if Not Detected
+        Torch = importlib.util.find_spec("torch")
+
+        if Torch is None:
+            logging.info('Installing PyTorch')
+            pip_install("torch")
+            logging.info('PyTorch Installed')
+        else:
+            logging.info('PyTorch Found')
 
 
 #
