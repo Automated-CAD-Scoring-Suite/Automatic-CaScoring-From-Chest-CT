@@ -345,7 +345,7 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 # CaScoreModuleLogic
 #
 
-class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
+class CaScoreModuleLogic(ScriptedLoadableModuleLogic, QObject):
     """This class should implement all the actual
   computation done by your module.  The interface
   should be such that other python code can import
@@ -354,6 +354,8 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
   Uses ScriptedLoadableModuleLogic base class, available at:
   https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
   """
+    finished = pyqtSignal()
+    progress = pyqtSignal(int)
 
     def __init__(self):
         """
