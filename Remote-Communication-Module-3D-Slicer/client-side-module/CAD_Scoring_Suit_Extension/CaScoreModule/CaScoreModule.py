@@ -9,20 +9,19 @@ import numpy as np
 import requests
 import slicer
 import vtk
+import qt
 from PIL import Image
 from slicer.ScriptedLoadableModule import *
 from slicer.util import VTKObservationMixin, pip_install
-from PyQt5.QtCore import QObject, QThread, pyqtSignal
 
 # Processing Packages
-from Models.Segmentation.Inference import Infer
 
 RepoRoot = os.path.dirname(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))))
 sys.path.append(RepoRoot)
 
 
-# from Models.Segmentation.Inference import Infer
+from Models.Segmentation.Inference import Infer
 
 #
 # CaScoreModule
@@ -345,7 +344,7 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 # CaScoreModuleLogic
 #
 
-class CaScoreModuleLogic(ScriptedLoadableModuleLogic, QObject):
+class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
     """This class should implement all the actual
   computation done by your module.  The interface
   should be such that other python code can import
@@ -354,9 +353,6 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, QObject):
   Uses ScriptedLoadableModuleLogic base class, available at:
   https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
   """
-    finished = pyqtSignal()
-    progress = pyqtSignal(int)
-
     def __init__(self):
         """
     Called when the logic class is instantiated. Can be used for initializing member variables.
