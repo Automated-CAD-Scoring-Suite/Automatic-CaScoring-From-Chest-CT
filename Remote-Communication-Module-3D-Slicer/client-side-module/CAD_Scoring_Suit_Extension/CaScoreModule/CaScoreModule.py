@@ -11,9 +11,11 @@ import slicer
 import vtk
 from PIL import Image
 from slicer.ScriptedLoadableModule import *
-from slicer.util import VTKObservationMixin
+from slicer.util import VTKObservationMixin, pip_install
+from PyQt5.QtCore import QObject, QThread, pyqtSignal
 
 # Processing Packages
+from Models.Segmentation.Inference import Infer
 
 RepoRoot = os.path.dirname(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))))
@@ -324,8 +326,10 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             # Compute output
             # self.logic.process(self.ui.inputSelector.currentNode(), self.LocalProcessing,
             #                    self.ui.URLLineEdit.text)
-            Segmentation = self.logic.Segment(self.ui.inputSelector.currentNode(), self.LocalProcessing,
-                                              self.ui.URLLineEdit.text, False)
+            Segmentation, SegmentationTime = self.logic.Segment(self.ui.inputSelector.currentNode(),
+                                                                self.LocalProcessing,
+                                                                self.ui.URLLineEdit.text, False)
+
 
         except Exception as e:
             slicer.util.errorDisplay("Failed to compute results: " + str(e))
@@ -518,25 +522,29 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
         # LabelmapVolumeNode.CreateDefaultStorageNode()
         # slicer.util.loadLabelVolume(r'c:\Users\msliv\Documents\test.nrrd')
 
-    def Segment(self, inputVolume, LocalProcessing=True, ProcessingURL="http://localhost:5000", Partial=True):
-
-        SegmentStart = time.time()
+    def Segment(self, inputVolume, LocalProcessing=True, ProcessingURL="http://localhost:5000", Partial=True,
+                ReturnTime=True):
 
         if not inputVolume:
             raise ValueError("Input volume is invalid")
-            # Convert Volume To NumPy Array
 
+        # Get Segmentation Start Time
+        SegmentStart = time.time()
+
+        # Convert Volume To NumPy Array
         VolumeArray = np.array(slicer.util.arrayFromVolume(inputVolume))
         VolumeShape = VolumeArray.shape
         SegmentedSlices = []
 
+        # Segment 3 Slicers From Each View
         if Partial:
             # Axial, Sagittal, Coronal
             Names = ["Ax1", "Ax2", "Ax3", "Sag1", "Sag2", "Sag3", "Cor1", "Cor2", "Cor3"]
             files = {}
-            data = {}
+            ShiftValues = {}
             RawSliceArrays = [[], [], []]
             Coordinates = []
+
             # Prepare Slices
             for i in range(3):
                 Mid = int(VolumeShape[i] / 2)
@@ -563,9 +571,9 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
                         # conversion, and store the shift value to be sent
                         if ArrS < 0:
                             Arr -= ArrS
-                            data[Names[0]] = ArrS
+                            ShiftValues[Names[0]] = ArrS
                         else:
-                            data[Names[0]] = 0
+                            ShiftValues[Names[0]] = 0
                         SliceImg = Image.fromarray(Arr)
                         SliceBytes = BytesIO()
                         SliceImg.save(SliceBytes, format="PNG")
@@ -573,14 +581,15 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
                         files[Names.pop(0)] = SliceBytes
 
             if not LocalProcessing:
-                SliceSendReq = requests.post(ProcessingURL + "/segment/slices", files=files, data=data)
+                SliceSendReq = requests.post(ProcessingURL + "/segment/slices", files=files, data=ShiftValues)
                 SegmentedSlices = np.load(SliceSendReq.content)
                 logging.info(f"Segmented Slices Received From Server")
                 # logging.info(f"Received Cropping Coordinates From Online Server")
             else:
-                # model = Infer(trace_path=RepoRoot+"/Models/Segmentation/model_arch.pth",
-                #               model_path=RepoRoot+"/Models/Segmentation/HarD-MSEG-best.pth")
-                # SegmentedSlices = model.predict(np.asarray(RawSliceArrays[0]))
+                model = Infer(trace_path=RepoRoot + "/Models/Segmentation/model_arch.pth",
+                              model_path=RepoRoot + "/Models/Segmentation/HarD-MSEG-best.pth")
+                for slice in RawSliceArrays[0]:
+                    SegmentedSlices.append(model.predict(np.array(slice)))
                 # for x in range(0, 3):
                 #     print(x)
                 #     Coordinates.append(get_coords(RawSliceArrays[x]))
@@ -589,10 +598,10 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
                 logging.info(f"Segmentation Computed Locally")
                 # logging.info(f"Cropping Coordinates Calculated Locally")
         else:
-            CompressedVolume = BytesIO()
-            np.savez_compressed(CompressedVolume, Volume=VolumeArray)
-            CompressedVolume.seek(0)
             if not LocalProcessing:
+                CompressedVolume = BytesIO()
+                np.savez_compressed(CompressedVolume, Volume=VolumeArray)
+                CompressedVolume.seek(0)
                 SliceSendReq = requests.post(ProcessingURL + "/segment/volume", files={"Volume": CompressedVolume})
                 Data = np.load(SliceSendReq.content)
                 SegmentedSlices = np.copy(Data['Segmentation'])
@@ -600,8 +609,13 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
                 logging.info(f"Segmented Slices Received From Server")
                 # logging.info(f"Received Cropping Coordinates From Online Server")
             else:
-                # model = Infer(trace_path=RepoRoot+"/Models/Segmentation/model_arch.pth",
-                #               model_path=RepoRoot+"/Models/Segmentation/HarD-MSEG-best.pth")
+                model = Infer(trace_path=RepoRoot + "/Models/Segmentation/model_arch.pth",
+                              model_path=RepoRoot + "/Models/Segmentation/HarD-MSEG-best.pth")
+
+                for i in range(VolumeShape[0]):
+                    # Segment Heart in Slice
+                    res = model.predict(VolumeArray[i, :, :])
+                    SegmentedSlices.append(res)
                 # SegmentedSlices = model.predict(np.asarray(RawSliceArrays[0]))
                 # for x in range(0, 3):
                 #     print(x)
@@ -610,7 +624,14 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
                 logging.info(f"Segmentation Computed Locally")
                 # logging.info(f"Cropping Coordinates Calculated Locally")
 
-        return SegmentedSlices
+        # Calculate Segmentation Time
+        SegmentEnd = time.time()
+        SegmentTime = SegmentEnd - SegmentStart
+
+        if ReturnTime:
+            return SegmentedSlices, SegmentTime
+        else:
+            return SegmentedSlices
 
     def CheckDependencies(self):
 
