@@ -329,7 +329,8 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             Segmentation, SegmentationTime = self.logic.Segment(self.ui.inputSelector.currentNode(),
                                                                 self.LocalProcessing,
                                                                 self.ui.URLLineEdit.text, False)
-
+            if not self.Partial:
+                self.logic.CreateSegmentationNode(Segmentation, "Heart")
 
         except Exception as e:
             slicer.util.errorDisplay("Failed to compute results: " + str(e))
@@ -645,6 +646,23 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
         else:
             logging.info('PyTorch Found')
 
+    def CreateSegmentationNode(self, Segmentation, Name="Heart"):
+
+        # Create a new LabelMapVolume
+        LabelMapVolumeNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLLabelMapVolumeNode', f'{Name}-Label')
+
+        # Update the LabelMapVolume from the given Segmentation array
+        slicer.util.updateVolumeFromArray(LabelMapVolumeNode, Segmentation)
+
+        # Create a SegmentationNode
+        segNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLSegmentationNode", f'{Name}-Segmentation')
+
+        # Load the LabelMapVolume into the SegmentationNode
+        slicer.modules.segmentations.logic().ImportLabelmapToSegmentationNode(LabelMapVolumeNode, segNode)
+
+        # Update Display
+        # LabelmapVolumeNode.CreateDefaultDisplayNodes()
+        # LabelmapVolumeNode.CreateDefaultStorageNode()
 
 #
 # CaScoreModuleTest
