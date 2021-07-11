@@ -365,6 +365,17 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.Progress.setEnabled(True)
         self.ui.Progress.collapsed = False
 
+        # Get Parameters
+        Partial = self._parameterNode.GetParameter("Partial")
+        HeartSegNode = self._parameterNode.GetParameter("HeartSegNode")
+        CalSegNode = self._parameterNode.GetParameter("CalSegNode")
+        CroppingEnabled = self._parameterNode.GetParameter("CroppingEnabled")
+        SegAndCrop = self._parameterNode.GetParameter("SegAndCrop")
+        HeartModelPath = self._parameterNode.GetParameter("HeartModelPath")
+        HeartTracePath = self._parameterNode.GetParameter("HeartTracePath")
+        CalModelPath = self._parameterNode.GetParameter("CalModelPath")
+        CalTracePath = self._parameterNode.GetParameter("CalTracePath")
+
         try:
 
             # Initialize Variables
