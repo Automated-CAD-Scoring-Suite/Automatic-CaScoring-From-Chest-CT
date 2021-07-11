@@ -298,9 +298,20 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # self._parameterNode.SetParameter("Invert", "true" if self.ui.invertOutputCheckBox.checked else "false")
         # self._parameterNode.SetNodeReferenceID("OutputVolumeInverse", self.ui.invertedOutputSelector.currentNodeID)
         self._parameterNode.SetParameter("URL",
-                                         self.ui.URLLineEdit.text if self.ui.URLLineEdit.isEnabled() else "http"
-                                                                                                          "://localhost:5000")
+                                         self.ui.URLLineEdit.text if self.ui.URLLineEdit.isEnabled()
+                                         else "http://localhost:5000")
+
         self._parameterNode.SetParameter("Local", "true" if self.ui.LocalProcessingRadio.checked else "false")
+        self._parameterNode.SetParameter("Partial", "true" if self.ui.PartialSegmentation.checked else "false")
+        self._parameterNode.SetParameter("HeartSegNode", "true" if self.ui.HeartSegNode.checked else "false")
+        self._parameterNode.SetParameter("CalSegNode", "true" if self.ui.CalSegNode.checked else "false")
+        self._parameterNode.SetParameter("CroppingEnabled", "true" if self.ui.CroppingEnabled.checked else "false")
+        self._parameterNode.SetParameter("SegAndCrop", "true" if self.ui.SegAndCrop.checked else "false")
+        self._parameterNode.SetParameter("Anonymize", "true" if self.ui.Anonymize.checked else "false")
+        self._parameterNode.SetParameter("HeartModelPath", self.ui.HeartModelPath.text)
+        self._parameterNode.SetParameter("HeartTracePath", self.ui.HeartTracePath.text)
+        self._parameterNode.SetParameter("CalModelPath", self.ui.CalModelPath.text)
+        self._parameterNode.SetParameter("CalTracePath", self.ui.CalTracePath.text)
 
         self._parameterNode.EndModify(wasModified)
 
@@ -312,10 +323,19 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         if self.ui.LocalProcessingRadio.isChecked():
             self.ui.URLLineEdit.setDisabled(True)
             self.LocalProcessing = True
+            self.ui.LocalSettings.setEnabled(True)
+            self.ui.LocalSettings.collapsed = False
+            self.ui.OnlineSettings.setEnabled(False)
+            self.ui.OnlineSettings.collapsed = True
 
         elif self.ui.OnlineProcessingRadio.isChecked():
             self.ui.URLLineEdit.setEnabled(True)
             self.LocalProcessing = False
+            self.ui.LocalSettings.setEnabled(False)
+            self.ui.LocalSettings.collapsed = True
+            self.ui.OnlineSettings.setEnabled(True)
+            self.ui.OnlineSettings.collapsed = False
+
 
     def onApplyButton(self):
         """
@@ -324,8 +344,16 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         startTime = time.time()
         logging.info('Processing started')
 
-        try:
+        # Collapse Settings For Better Progress View
+        self.ui.GeneralSettings.collapsed = True
+        self.ui.LocalSettings.collapsed = True
+        self.ui.OnlineSettings.collapsed = True
 
+        # Enable & Expand Progress Box
+        self.ui.Progress.setEnabled(True)
+        self.ui.Progress.collapsed = False
+
+        try:
             # Check For Dependencies & Install Missing Ones
             if self.LocalProcessing:
                 self.logic.CheckDependencies()
@@ -421,7 +449,6 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
         logging.info('Processing started')
 
         # Convert Volume To NumPy Array
-
         VolumeArray = np.copy(np.array(slicer.util.arrayFromVolume(inputVolume)))
         VolumeShape = VolumeArray.shape
 
@@ -543,7 +570,7 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
         SegmentStart = time.time()
 
         # Convert Volume To NumPy Array
-        VolumeArray = np.array(slicer.util.arrayFromVolume(inputVolume))
+        VolumeArray = np.array(slicer.util.arrayFromVolume(inputVolume), copy=True)
         VolumeShape = VolumeArray.shape
         SegmentedSlices = []
 
@@ -674,7 +701,8 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
         # LabelmapVolumeNode.CreateDefaultDisplayNodes()
         # LabelmapVolumeNode.CreateDefaultStorageNode()
 
-
+    def GetCoordinates(self, Segmentation, Partial, Local):
+        pass
 #
 # CaScoreModuleTest
 #
