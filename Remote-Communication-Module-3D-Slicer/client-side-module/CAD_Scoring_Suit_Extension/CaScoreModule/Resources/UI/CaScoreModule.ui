@@ -15,14 +15,14 @@
   </property>
   <layout class="QVBoxLayout" name="verticalLayout_3">
    <item>
-    <widget class="ctkCollapsibleButton" name="inputsCollapsibleButton" native="true">
+    <widget class="ctkCollapsibleButton" name="inputsCollapsibleButton">
      <property name="sizePolicy">
       <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
        <horstretch>0</horstretch>
        <verstretch>0</verstretch>
       </sizepolicy>
      </property>
-     <property name="text" stdset="0">
+     <property name="text">
       <string>Input Volume</string>
      </property>
      <layout class="QFormLayout" name="formLayout_2">
@@ -34,22 +34,22 @@
        </widget>
       </item>
       <item row="0" column="1">
-       <widget class="qMRMLNodeComboBox" name="inputSelector" native="true">
+       <widget class="qMRMLNodeComboBox" name="inputSelector">
         <property name="toolTip">
          <string>Pick the input to the algorithm.</string>
         </property>
-        <property name="nodeTypes" stdset="0">
+        <property name="nodeTypes">
          <stringlist>
           <string>vtkMRMLScalarVolumeNode</string>
          </stringlist>
         </property>
-        <property name="showChildNodeTypes" stdset="0">
+        <property name="showChildNodeTypes">
          <bool>false</bool>
         </property>
-        <property name="addEnabled" stdset="0">
+        <property name="addEnabled">
          <bool>false</bool>
         </property>
-        <property name="removeEnabled" stdset="0">
+        <property name="removeEnabled">
          <bool>false</bool>
         </property>
        </widget>
@@ -58,14 +58,14 @@
     </widget>
    </item>
    <item>
-    <widget class="ctkCollapsibleButton" name="GeneralSettings" native="true">
+    <widget class="ctkCollapsibleButton" name="GeneralSettings">
      <property name="enabled">
       <bool>true</bool>
      </property>
-     <property name="text" stdset="0">
+     <property name="text">
       <string>General Settings</string>
      </property>
-     <property name="collapsed" stdset="0">
+     <property name="collapsed">
       <bool>false</bool>
      </property>
      <layout class="QGridLayout" name="gridLayout">
@@ -178,7 +178,7 @@
     </widget>
    </item>
    <item>
-    <widget class="ctkCollapsibleButton" name="LocalSettings" native="true">
+    <widget class="ctkCollapsibleButton" name="LocalSettings">
      <property name="enabled">
       <bool>true</bool>
      </property>
@@ -188,11 +188,11 @@
        <height>0</height>
       </size>
      </property>
-     <property name="text" stdset="0">
+     <property name="text">
       <string>Local Processing Settings</string>
      </property>
-     <property name="collapsed" stdset="0">
-      <bool>true</bool>
+     <property name="collapsed">
+      <bool>false</bool>
      </property>
      <layout class="QVBoxLayout" name="verticalLayout_2">
       <item>
@@ -218,22 +218,21 @@
          </widget>
         </item>
         <item>
-         <widget class="QLineEdit" name="HeartModelPath">
-          <property name="placeholderText">
-           <string>Model Path</string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QPushButton" name="HeartModelBrowse">
+         <widget class="ctkPathLineEdit" name="HeartModelPath">
           <property name="sizePolicy">
-           <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+           <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
             <horstretch>0</horstretch>
             <verstretch>0</verstretch>
            </sizepolicy>
           </property>
-          <property name="text">
-           <string>Browse</string>
+          <property name="acceptDrops">
+           <bool>true</bool>
+          </property>
+          <property name="options">
+           <set>ctkPathLineEdit::DontUseNativeDialog</set>
+          </property>
+          <property name="sizeAdjustPolicy">
+           <enum>ctkPathLineEdit::AdjustToMinimumContentsLength</enum>
           </property>
          </widget>
         </item>
@@ -249,16 +248,15 @@
          </widget>
         </item>
         <item>
-         <widget class="QLineEdit" name="HeartTracePath">
-          <property name="placeholderText">
-           <string>Trace Path</string>
+         <widget class="ctkPathLineEdit" name="HeartTracePath">
+          <property name="acceptDrops">
+           <bool>true</bool>
           </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QPushButton" name="HeartTraceBrowse">
-          <property name="text">
-           <string>Browse</string>
+          <property name="options">
+           <set>ctkPathLineEdit::DontUseNativeDialog</set>
+          </property>
+          <property name="sizeAdjustPolicy">
+           <enum>ctkPathLineEdit::AdjustToMinimumContentsLength</enum>
           </property>
          </widget>
         </item>
@@ -291,22 +289,18 @@
          </widget>
         </item>
         <item>
-         <widget class="QLineEdit" name="CalModelPath">
-          <property name="placeholderText">
-           <string>Model Path</string>
+         <widget class="ctkPathLineEdit" name="CalModelPath">
+          <property name="acceptDrops">
+           <bool>true</bool>
           </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QPushButton" name="CalModelBrowse">
-          <property name="sizePolicy">
-           <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-            <horstretch>0</horstretch>
-            <verstretch>0</verstretch>
-           </sizepolicy>
+          <property name="options">
+           <set>ctkPathLineEdit::DontUseNativeDialog</set>
           </property>
-          <property name="text">
-           <string>Browse</string>
+          <property name="sizeAdjustPolicy">
+           <enum>ctkPathLineEdit::AdjustToMinimumContentsLength</enum>
+          </property>
+          <property name="minimumContentsLength">
+           <number>0</number>
           </property>
          </widget>
         </item>
@@ -317,21 +311,23 @@
         <item>
          <widget class="QLabel" name="label_5">
           <property name="text">
-           <string>Trace  </string>
+           <string>Trace</string>
           </property>
          </widget>
         </item>
         <item>
-         <widget class="QLineEdit" name="CalTracePath">
-          <property name="placeholderText">
-           <string>Trace Path</string>
+         <widget class="ctkPathLineEdit" name="CalTracePath">
+          <property name="acceptDrops">
+           <bool>true</bool>
           </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QPushButton" name="CalTraceBrowse">
-          <property name="text">
-           <string>Browse</string>
+          <property name="label">
+           <string>Trace</string>
+          </property>
+          <property name="options">
+           <set>ctkPathLineEdit::DontUseNativeDialog</set>
+          </property>
+          <property name="sizeAdjustPolicy">
+           <enum>ctkPathLineEdit::AdjustToMinimumContentsLength</enum>
           </property>
          </widget>
         </item>
@@ -341,14 +337,14 @@
     </widget>
    </item>
    <item>
-    <widget class="ctkCollapsibleButton" name="OnlineSettings" native="true">
+    <widget class="ctkCollapsibleButton" name="OnlineSettings">
      <property name="enabled">
       <bool>false</bool>
      </property>
-     <property name="text" stdset="0">
+     <property name="text">
       <string>Online Processing Settings</string>
      </property>
-     <property name="collapsed" stdset="0">
+     <property name="collapsed">
       <bool>true</bool>
      </property>
      <layout class="QGridLayout" name="gridLayout_3">
@@ -412,14 +408,14 @@
     </widget>
    </item>
    <item>
-    <widget class="ctkCollapsibleButton" name="Progress" native="true">
+    <widget class="ctkCollapsibleButton" name="Progress">
      <property name="enabled">
       <bool>false</bool>
      </property>
-     <property name="text" stdset="0">
+     <property name="text">
       <string>Progress</string>
      </property>
-     <property name="collapsed" stdset="0">
+     <property name="collapsed">
       <bool>true</bool>
      </property>
      <layout class="QGridLayout" name="gridLayout_4">
@@ -506,8 +502,13 @@
   <customwidget>
    <class>ctkCollapsibleButton</class>
    <extends>QWidget</extends>
-   <header location="global">ctkCollapsibleButton.h</header>
+   <header>ctkCollapsibleButton.h</header>
    <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>ctkPathLineEdit</class>
+   <extends>QWidget</extends>
+   <header>ctkPathLineEdit.h</header>
   </customwidget>
   <customwidget>
    <class>qMRMLNodeComboBox</class>

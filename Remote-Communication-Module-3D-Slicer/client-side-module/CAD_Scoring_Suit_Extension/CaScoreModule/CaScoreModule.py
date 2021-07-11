@@ -283,10 +283,10 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # self.ui.imageThresholdSliderWidget.value = float(self._parameterNode.GetParameter("Threshold"))
         # self.ui.invertOutputCheckBox.checked = (self._parameterNode.GetParameter("Invert") == "true")
 
-        self.ui.HeartModelPath.text = self._parameterNode.GetParameter("HeartModelPath")
-        self.ui.HeartTracePath.text = self._parameterNode.GetParameter("HeartTracePath")
-        self.ui.CalModelPath.text = self._parameterNode.GetParameter("CalModelPath")
-        self.ui.CalTracePath.text = self._parameterNode.GetParameter("CalTracePath")
+        self.ui.HeartModelPath.currentPath = self._parameterNode.GetParameter("HeartModelPath")
+        self.ui.HeartTracePath.currentPath = self._parameterNode.GetParameter("HeartTracePath")
+        self.ui.CalModelPath.currentPath = self._parameterNode.GetParameter("CalModelPath")
+        self.ui.CalTracePath.currentPath = self._parameterNode.GetParameter("CalTracePath")
 
         if self._parameterNode.GetParameter("CroppingEnabled"):
             self.ui.CroppingEnabled.checked = strtobool(self._parameterNode.GetParameter("CroppingEnabled"))
@@ -333,10 +333,10 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self._parameterNode.SetParameter("CroppingEnabled", "true" if self.ui.CroppingEnabled.checked else "false")
         self._parameterNode.SetParameter("SegAndCrop", "true" if self.ui.SegAndCrop.checked else "false")
         self._parameterNode.SetParameter("Anonymize", "true" if self.ui.Anonymize.checked else "false")
-        self._parameterNode.SetParameter("HeartModelPath", self.ui.HeartModelPath.text)
-        self._parameterNode.SetParameter("HeartTracePath", self.ui.HeartTracePath.text)
-        self._parameterNode.SetParameter("CalModelPath", self.ui.CalModelPath.text)
-        self._parameterNode.SetParameter("CalTracePath", self.ui.CalTracePath.text)
+        self._parameterNode.SetParameter("HeartModelPath", self.ui.HeartModelPath.currentPath)
+        self._parameterNode.SetParameter("HeartTracePath", self.ui.HeartTracePath.currentPath)
+        self._parameterNode.SetParameter("CalModelPath", self.ui.CalModelPath.currentPath)
+        self._parameterNode.SetParameter("CalTracePath", self.ui.CalTracePath.currentPath)
 
         self._parameterNode.EndModify(wasModified)
 
