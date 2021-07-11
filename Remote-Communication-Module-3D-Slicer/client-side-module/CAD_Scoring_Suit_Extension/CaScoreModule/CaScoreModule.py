@@ -4,6 +4,7 @@ import sys
 import time
 from io import BytesIO
 import importlib
+from distutils.util import strtobool
 
 import numpy as np
 import requests
@@ -167,6 +168,13 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # self.ui.imageThresholdSliderWidget.connect("valueChanged(double)", self.updateParameterNodeFromGUI)
         # self.ui.invertOutputCheckBox.connect("toggled(bool)", self.updateParameterNodeFromGUI)
         # self.ui.invertedOutputSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.updateParameterNodeFromGUI)
+        self.ui.OnlineProcessingRadio.toggled.connect(self.updateParameterNodeFromGUI)
+        self.ui.LocalProcessingRadio.toggled.connect(self.updateParameterNodeFromGUI)
+        self.ui.CroppingEnabled.toggled.connect(self.updateParameterNodeFromGUI)
+        self.ui.PartialSegmentation.toggled.connect(self.updateParameterNodeFromGUI)
+        self.ui.HeartSegNode.toggled.connect(self.updateParameterNodeFromGUI)
+        self.ui.CalSegNode.toggled.connect(self.updateParameterNodeFromGUI)
+        self.ui.SegAndCrop.toggled.connect(self.updateParameterNodeFromGUI)
 
         # Buttons
         self.ui.applyButton.connect('clicked(bool)', self.onApplyButton)
@@ -280,6 +288,13 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.CalModelPath.text = self._parameterNode.GetParameter("CalModelPath")
         self.ui.CalTracePath.text = self._parameterNode.GetParameter("CalTracePath")
 
+        if self._parameterNode.GetParameter("CroppingEnabled"):
+            self.ui.CroppingEnabled.checked = strtobool(self._parameterNode.GetParameter("CroppingEnabled"))
+            self.ui.PartialSegmentation.checked = strtobool(self._parameterNode.GetParameter("Partial"))
+            self.ui.HeartSegNode.checked = strtobool(self._parameterNode.GetParameter("HeartSegNode"))
+            self.ui.CalSegNode.checked = strtobool(self._parameterNode.GetParameter("CalSegNode"))
+            self.ui.SegAndCrop.checked = strtobool(self._parameterNode.GetParameter("SegAndCrop"))
+
         # Update buttons states and tooltips
         if self._parameterNode.GetNodeReference("InputVolume"):
             self.ui.applyButton.toolTip = "Compute CaScore"
@@ -347,7 +362,29 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.ui.OnlineSettings.collapsed = False
 
     def AllowableOperations(self):
-        pass
+
+
+        # Disable Partial Segmentation Option If Segmentation Node Creation Option is Enabled,
+        # As We Need To Fully Segment The Heart, Also Disables Requesting Segmentation As It Is Required
+
+        if strtobool(self._parameterNode.GetParameter("HeartSegNode")):
+            self._parameterNode.SetParameter("Partial", "false")
+            self.ui.PartialSegmentation.setEnabled(False)
+            self._parameterNode.SetParameter("SegAndCrop", "false")
+            self.ui.SegAndCrop.setEnabled(False)
+        else:
+            self.ui.PartialSegmentation.setEnabled(True)
+            self.ui.SegAndCrop.setEnabled(True)
+
+        # Disable Partial Segmentation Option If Cropping is Disabled
+        if strtobool(self._parameterNode.GetParameter("CroppingEnabled")) and \
+                not strtobool(self._parameterNode.GetParameter("HeartSegNode")):
+            self.ui.PartialSegmentation.setEnabled(True)
+        else:
+            self._parameterNode.SetParameter("Partial", "false")
+            self.ui.PartialSegmentation.setEnabled(False)
+
+        self.updateGUIFromParameterNode()
 
     def onApplyButton(self):
         """
