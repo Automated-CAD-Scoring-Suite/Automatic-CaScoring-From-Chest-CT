@@ -1,20 +1,31 @@
-import os, sys
-import unittest
 import logging
-import vtk, qt, ctk, slicer
+import os
+import sys
+import time
+from io import BytesIO
+import importlib
+from distutils.util import strtobool
+
+import numpy as np
+import requests
+import slicer
+import vtk
+import qt
+from PIL import Image
 from slicer.ScriptedLoadableModule import *
-from slicer.util import VTKObservationMixin
+from slicer.util import VTKObservationMixin, pip_install
 
 # Processing Packages
 
-import numpy as np
-from PIL import Image
-from io import BytesIO
-import requests
-
 RepoRoot = os.path.dirname(
-    os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))))
+    os.path.dirname(
+        os.path.dirname(
+            os.path.dirname(
+                os.path.dirname(
+                    os.path.realpath(__file__))))))
+
 sys.path.append(RepoRoot)
+
 from Models.crop_roi import get_coords
 
 
@@ -67,7 +78,6 @@ def registerSampleData():
     # To ensure that the source code repository remains small (can be downloaded and installed quickly)
     # it is recommended to store data sets that are larger than a few MB in a Github release.
 
-
     # TODO Add sample data for test
 
     # CaScoreModule1
@@ -75,11 +85,12 @@ def registerSampleData():
         # Category and sample name displayed in Sample Data module
         category='CaScoreModule',
         sampleName='CaScoreModule1',
-        # Thumbnail should have size of approximately 260x280 pixels and stored in Resources/Icons folder.
-        # It can be created by Screen Capture module, "Capture all views" option enabled, "Number of images" set to "Single".
+        # Thumbnail should have size of approximately 260x280 pixels and stored in Resources/Icons folder. It can be
+        # created by Screen Capture module, "Capture all views" option enabled, "Number of images" set to "Single".
         thumbnailFileName=os.path.join(iconsPath, 'CaScoreModule1.png'),
         # Download URL and target file name
-        uris="https://github.com/Slicer/SlicerTestingData/releases/download/SHA256/998cb522173839c78657f4bc0ea907cea09fd04e44601f17c82ea27927937b95",
+        uris="https://github.com/Slicer/SlicerTestingData/releases/download/SHA256"
+             "/998cb522173839c78657f4bc0ea907cea09fd04e44601f17c82ea27927937b95",
         fileNames='CaScoreModule1.nrrd',
         # Checksum to ensure file integrity. Can be computed by this command:
         #  import hashlib; print(hashlib.sha256(open(filename, "rb").read()).hexdigest())
@@ -95,7 +106,8 @@ def registerSampleData():
         sampleName='CaScoreModule2',
         thumbnailFileName=os.path.join(iconsPath, 'CaScoreModule2.png'),
         # Download URL and target file name
-        uris="https://github.com/Slicer/SlicerTestingData/releases/download/SHA256/1a64f3f422eb3d1c9b093d1a18da354b13bcf307907c66317e2463ee530b7a97",
+        uris="https://github.com/Slicer/SlicerTestingData/releases/download/SHA256"
+             "/1a64f3f422eb3d1c9b093d1a18da354b13bcf307907c66317e2463ee530b7a97",
         fileNames='CaScoreModule2.nrrd',
         checksums='SHA256:1a64f3f422eb3d1c9b093d1a18da354b13bcf307907c66317e2463ee530b7a97',
         # This node name will be used when the data set is loaded
@@ -158,6 +170,13 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # self.ui.imageThresholdSliderWidget.connect("valueChanged(double)", self.updateParameterNodeFromGUI)
         # self.ui.invertOutputCheckBox.connect("toggled(bool)", self.updateParameterNodeFromGUI)
         # self.ui.invertedOutputSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.updateParameterNodeFromGUI)
+        self.ui.OnlineProcessingRadio.toggled.connect(self.updateParameterNodeFromGUI)
+        self.ui.LocalProcessingRadio.toggled.connect(self.updateParameterNodeFromGUI)
+        self.ui.CroppingEnabled.toggled.connect(self.updateParameterNodeFromGUI)
+        self.ui.PartialSegmentation.toggled.connect(self.updateParameterNodeFromGUI)
+        self.ui.HeartSegNode.toggled.connect(self.updateParameterNodeFromGUI)
+        self.ui.CalSegNode.toggled.connect(self.updateParameterNodeFromGUI)
+        self.ui.SegAndCrop.toggled.connect(self.updateParameterNodeFromGUI)
 
         # Buttons
         self.ui.applyButton.connect('clicked(bool)', self.onApplyButton)
@@ -165,6 +184,13 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # Radio Boxes
         self.ui.OnlineProcessingRadio.toggled.connect(self.ProcessingLocationSelect)
         self.ui.LocalProcessingRadio.toggled.connect(self.ProcessingLocationSelect)
+
+        # Checkboxes
+        self.ui.CroppingEnabled.toggled.connect(self.AllowableOperations)
+        self.ui.PartialSegmentation.toggled.connect(self.AllowableOperations)
+        self.ui.HeartSegNode.toggled.connect(self.AllowableOperations)
+        self.ui.CalSegNode.toggled.connect(self.AllowableOperations)
+        self.ui.SegAndCrop.toggled.connect(self.AllowableOperations)
 
         # Make sure parameter node is initialized (needed for module reload)
         self.initializeParameterNode()
@@ -259,6 +285,18 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # self.ui.imageThresholdSliderWidget.value = float(self._parameterNode.GetParameter("Threshold"))
         # self.ui.invertOutputCheckBox.checked = (self._parameterNode.GetParameter("Invert") == "true")
 
+        self.ui.HeartModelPath.currentPath = self._parameterNode.GetParameter("HeartModelPath")
+        self.ui.HeartTracePath.currentPath = self._parameterNode.GetParameter("HeartTracePath")
+        self.ui.CalModelPath.currentPath = self._parameterNode.GetParameter("CalModelPath")
+        self.ui.CalTracePath.currentPath = self._parameterNode.GetParameter("CalTracePath")
+
+        if self._parameterNode.GetParameter("CroppingEnabled"):
+            self.ui.CroppingEnabled.checked = strtobool(self._parameterNode.GetParameter("CroppingEnabled"))
+            self.ui.PartialSegmentation.checked = strtobool(self._parameterNode.GetParameter("Partial"))
+            self.ui.HeartSegNode.checked = strtobool(self._parameterNode.GetParameter("HeartSegNode"))
+            self.ui.CalSegNode.checked = strtobool(self._parameterNode.GetParameter("CalSegNode"))
+            self.ui.SegAndCrop.checked = strtobool(self._parameterNode.GetParameter("SegAndCrop"))
+
         # Update buttons states and tooltips
         if self._parameterNode.GetNodeReference("InputVolume"):
             self.ui.applyButton.toolTip = "Compute CaScore"
@@ -287,8 +325,20 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # self._parameterNode.SetParameter("Invert", "true" if self.ui.invertOutputCheckBox.checked else "false")
         # self._parameterNode.SetNodeReferenceID("OutputVolumeInverse", self.ui.invertedOutputSelector.currentNodeID)
         self._parameterNode.SetParameter("URL",
-                                         self.ui.URLLineEdit.text if self.ui.URLLineEdit.isEnabled() else "http://localhost:500")
+                                         self.ui.URLLineEdit.text if self.ui.URLLineEdit.isEnabled()
+                                         else "http://localhost:5000")
+
         self._parameterNode.SetParameter("Local", "true" if self.ui.LocalProcessingRadio.checked else "false")
+        self._parameterNode.SetParameter("Partial", "true" if self.ui.PartialSegmentation.checked else "false")
+        self._parameterNode.SetParameter("HeartSegNode", "true" if self.ui.HeartSegNode.checked else "false")
+        self._parameterNode.SetParameter("CalSegNode", "true" if self.ui.CalSegNode.checked else "false")
+        self._parameterNode.SetParameter("CroppingEnabled", "true" if self.ui.CroppingEnabled.checked else "false")
+        self._parameterNode.SetParameter("SegAndCrop", "true" if self.ui.SegAndCrop.checked else "false")
+        self._parameterNode.SetParameter("Anonymize", "true" if self.ui.Anonymize.checked else "false")
+        self._parameterNode.SetParameter("HeartModelPath", self.ui.HeartModelPath.currentPath)
+        self._parameterNode.SetParameter("HeartTracePath", self.ui.HeartTracePath.currentPath)
+        self._parameterNode.SetParameter("CalModelPath", self.ui.CalModelPath.currentPath)
+        self._parameterNode.SetParameter("CalTracePath", self.ui.CalTracePath.currentPath)
 
         self._parameterNode.EndModify(wasModified)
 
@@ -297,42 +347,140 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         Handles Changes Processing Location Settings
         """
 
-        if (self.ui.LocalProcessingRadio.isChecked()):
+        if self.ui.LocalProcessingRadio.isChecked():
             self.ui.URLLineEdit.setDisabled(True)
             self.LocalProcessing = True
+            self.ui.LocalSettings.setEnabled(True)
+            self.ui.LocalSettings.collapsed = False
+            self.ui.OnlineSettings.setEnabled(False)
+            self.ui.OnlineSettings.collapsed = True
 
-        elif (self.ui.OnlineProcessingRadio.isChecked()):
+        elif self.ui.OnlineProcessingRadio.isChecked():
             self.ui.URLLineEdit.setEnabled(True)
             self.LocalProcessing = False
+            self.ui.LocalSettings.setEnabled(False)
+            self.ui.LocalSettings.collapsed = True
+            self.ui.OnlineSettings.setEnabled(True)
+            self.ui.OnlineSettings.collapsed = False
+
+    def AllowableOperations(self):
+
+        # Disable Partial Segmentation Option If Segmentation Node Creation Option is Enabled,
+        # As We Need To Fully Segment The Heart, Also Disables Requesting Segmentation As It Is Required
+
+        if strtobool(self._parameterNode.GetParameter("HeartSegNode")):
+            self._parameterNode.SetParameter("Partial", "false")
+            self.ui.PartialSegmentation.setEnabled(False)
+            self._parameterNode.SetParameter("SegAndCrop", "false")
+            self.ui.SegAndCrop.setEnabled(False)
+        else:
+            self.ui.PartialSegmentation.setEnabled(True)
+            self.ui.SegAndCrop.setEnabled(True)
+
+        # Disable Partial Segmentation Option If Cropping is Disabled
+        if strtobool(self._parameterNode.GetParameter("CroppingEnabled")) and \
+                not strtobool(self._parameterNode.GetParameter("HeartSegNode")):
+            self.ui.PartialSegmentation.setEnabled(True)
+        else:
+            self._parameterNode.SetParameter("Partial", "false")
+            self.ui.PartialSegmentation.setEnabled(False)
+
+        self.updateGUIFromParameterNode()
 
     def onApplyButton(self):
         """
     Run processing when user clicks "Apply" button.
     """
+        startTime = time.time()
+        logging.info('Processing started')
+
+        # Collapse Settings For Better Progress View
+        self.ui.GeneralSettings.collapsed = True
+        self.ui.LocalSettings.collapsed = True
+        self.ui.OnlineSettings.collapsed = True
+
+        # Enable & Expand Progress Box
+        self.ui.Progress.setEnabled(True)
+        self.ui.Progress.collapsed = False
+
+        # Update Parameters
+        self.updateParameterNodeFromGUI()
+
+        # Get Parameters
+        Partial = bool(strtobool(self._parameterNode.GetParameter("Partial")))
+        HeartSegNode = bool(strtobool(self._parameterNode.GetParameter("HeartSegNode")))
+        CalSegNode = bool(strtobool(self._parameterNode.GetParameter("CalSegNode")))
+        CroppingEnabled = bool(strtobool(self._parameterNode.GetParameter("CroppingEnabled")))
+        SegAndCrop = bool(strtobool(self._parameterNode.GetParameter("SegAndCrop")))
+        HeartModelPath = self._parameterNode.GetParameter("HeartModelPath")
+        HeartTracePath = self._parameterNode.GetParameter("HeartTracePath")
+        CalModelPath = self._parameterNode.GetParameter("CalModelPath")
+        CalTracePath = self._parameterNode.GetParameter("CalTracePath")
+
+        # Get Input Volume
+        InputVolumeNode = self.ui.inputSelector.currentNode()
+
         try:
 
-            # Compute output
-            self.logic.process(self.ui.inputSelector.currentNode(), self.LocalProcessing,
-                               self.ui.URLLineEdit.text)
+            # Initialize Variables
+            Segmentation = []
+            SegmentationTime = 0
+            Coordinates = []
+            VolumeArray = np.array(slicer.util.arrayFromVolume(InputVolumeNode), copy=True)
 
-            # Compute inverted output (if needed)
-            # if self.ui.invertedOutputSelector.currentNode():
-            #     # If additional output volume is selected then result with inverted threshold is written there
-            #     self.logic.process(self.ui.inputSelector.currentNode(), self.ui.invertedOutputSelector.currentNode(),
-            #                        self.ui.imageThresholdSliderWidget.value, not self.ui.invertOutputCheckBox.checked,
-            #                        showResult=False)
+            # Check For Dependencies & Install Missing Ones
+            if self.LocalProcessing:
+                self.logic.CheckDependencies()
+
+            # Compute output
+            if SegAndCrop:
+                Coordinates = self.logic.SegAndCrop(VolumeArray, self.LocalProcessing,
+                                                    self.ui.URLLineEdit.text, HeartModelPath, HeartTracePath)
+
+            elif CalSegNode or CroppingEnabled:
+                Segmentation, SegmentationTime = self.logic.Segment(self.ui.inputSelector.currentNode(),
+                                                                    self.LocalProcessing,
+                                                                    self.ui.URLLineEdit.text, Partial, True,
+                                                                    HeartModelPath, HeartTracePath)
+
+                logging.info('Segmentation completed in {0:.2f} seconds'.format(SegmentationTime))
+
+            if not Partial and CalSegNode:
+                self.logic.CreateSegmentationNode(Segmentation, "Heart")
+
+            if CroppingEnabled and not SegAndCrop:
+                Coordinates = self.logic.GetCoordinates(Segmentation, Partial, self.LocalProcessing)
+
+            if CroppingEnabled or SegAndCrop:
+                x1 = (Coordinates[0] - 20) if (Coordinates[0] - 20 >= 0) else 0
+                x2 = (Coordinates[1] - 20) if (Coordinates[1] - 20 >= 0) else VolumeArray.shape[1]
+                y1 = (Coordinates[2] - 20) if (Coordinates[2] - 20 >= 0) else 0
+                y2 = (Coordinates[3] - 20) if (Coordinates[3] - 20 >= 0) else VolumeArray.shape[3]
+
+                logging.info(f"The Cropping Coordinates Are X->{x1}:{x2}, Y->{y1}:{y2}")
+                NewVolume = VolumeArray[:, x1:x2, y1:y2]
+                slicer.util.updateVolumeFromArray(InputVolumeNode, NewVolume)
+                logging.info(f"Cropped!")
+                CompositeNode = slicer.app.layoutManager().sliceWidget("Red").sliceLogic().GetSliceCompositeNode()
+                VolumeNodeID = CompositeNode.GetBackgroundVolumeID()
+                CurrentNode = slicer.mrmlScene.GetNodeByID(VolumeNodeID)
+                slicer.util.setSliceViewerLayers(foreground=CurrentNode, fit=True)
+
 
         except Exception as e:
             slicer.util.errorDisplay("Failed to compute results: " + str(e))
             import traceback
             traceback.print_exc()
 
+        stopTime = time.time()
+        logging.info('Processing completed in {0:.2f} seconds'.format(stopTime - startTime))
+
 
 #
 # CaScoreModuleLogic
 #
 
-class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
+class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
     """This class should implement all the actual
   computation done by your module.  The interface
   should be such that other python code can import
@@ -341,6 +489,8 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
   Uses ScriptedLoadableModuleLogic base class, available at:
   https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
   """
+    finished = qt.Signal()
+    progress = qt.Signal(int)
 
     def __init__(self):
         """
@@ -356,6 +506,14 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
             parameterNode.SetParameter("URL", "http://localhost:5000")
         if not parameterNode.GetParameter("Local"):
             parameterNode.SetParameter("Local", "true")
+        if not parameterNode.GetParameter("HeartModelPath"):
+            Path = RepoRoot + '/Models/Segmentation/HarD-MSEG-best.pth'
+            if os.path.exists(Path):
+                parameterNode.SetParameter("HeartModelPath", Path)
+        if not parameterNode.GetParameter("HeartTracePath"):
+            Path = RepoRoot + '/Models/Segmentation/model_arch.pth'
+            if os.path.exists(Path):
+                parameterNode.SetParameter("HeartTracePath", Path)
 
     def processOld(self, inputVolume, outputVolume, imageThreshold, invert=False, showResult=True):
         """
@@ -390,28 +548,31 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
         stopTime = time.time()
         logging.info('Processing completed in {0:.2f} seconds'.format(stopTime - startTime))
 
-    def process(self, inputVolume, LocalProcessing=True, ProcessingURL="http://localhost:5000"):
+    def SegAndCrop(self, inputVolume, LocalProcessing=True, ProcessingURL="http://localhost:5000",
+                   ModelPath="", TracePath=""):
 
-        if not inputVolume:
+        if inputVolume is None:
             raise ValueError("Input volume is invalid")
 
-        import time
         startTime = time.time()
         logging.info('Processing started')
 
         # Convert Volume To NumPy Array
-
-        VolumeArray = np.array(slicer.util.arrayFromVolume(inputVolume))
+        VolumeArray = np.copy(inputVolume)
         VolumeShape = VolumeArray.shape
 
         # Cropping Pattern Start
+        # CompressedArray = BytesIO()
+        # np.savez_compressed(CompressedArray, a=VolumeArray)
 
         # Axial, Sagittal, Coronal
         Names = ["Ax1", "Ax2", "Ax3", "Sag1", "Sag2", "Sag3", "Cor1", "Cor2", "Cor3"]
         files = {}
-        data = {}
+        ShiftValues = {}
         RawSliceArrays = [[], [], []]
+        Arr = []
         Coordinates = []
+
         # Prepare Slices
         for i in range(3):
             Mid = int(VolumeShape[i] / 2)
@@ -438,9 +599,9 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
                     # and store the shift value to be sent
                     if ArrS < 0:
                         Arr -= ArrS
-                        data[Names[0]] = ArrS
+                        ShiftValues[Names[0]] = ArrS
                     else:
-                        data[Names[0]] = 0
+                        ShiftValues[Names[0]] = 0
                     SliceImg = Image.fromarray(Arr)
                     SliceBytes = BytesIO()
                     SliceImg.save(SliceBytes, format="PNG")
@@ -448,33 +609,198 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
                     files[Names.pop(0)] = SliceBytes
 
         if not LocalProcessing:
-            SliceSendReq = requests.post(ProcessingURL + "/crop", files=files, data=data)
+            SliceSendReq = requests.post(ProcessingURL + "/crop", files=files, data=ShiftValues)
             Coordinates = SliceSendReq.json()["Coor"]
             logging.info(f"Received Cropping Coordinates From Online Server")
         else:
-            for x in range(0, 3):
-                print(x)
-                Coordinates.append(get_coords(RawSliceArrays[x]))
+            from Models.Segmentation.Inference import Infer
+            model = Infer(trace_path=TracePath, model_path=ModelPath)
+            res = model.predict(np.array(RawSliceArrays[0]))
+            Coordinates.append(get_coords(res))
+
+            # for x in range(0, 3):
+            #     print(x)
+            #     Coordinates.append(get_coords(RawSliceArrays[x]))
+
             logging.info(f"Cropping Coordinates Calculated Locally")
 
         logging.info(f"The Cropping Coordinates Are {Coordinates}")
+        stopTime = time.time()
+        logging.info('Segmentation & Coordinates Calculation Completed in in {0:.2f} seconds'.format(stopTime - startTime))
+
+        return Coordinates
         # [z,x,y]
         # Coordinates = [[Xmin, Xmax, Ymin, Ymax],[Zmin,Zmax, Ymin, Ymax],[Zmin, Zmax, Xmin,Xmax]]
         # Start Cropping
         # Determine Correct Cropping Coordinates
 
-        x1 = np.minimum(Coordinates[0][0], Coordinates[2][0])
-        x2 = np.maximum(Coordinates[0][1], Coordinates[2][1])
-        y1 = np.minimum(Coordinates[0][2], Coordinates[1][0])
-        y2 = np.maximum(Coordinates[0][3], Coordinates[1][1])
-        z1 = np.minimum(Coordinates[1][2], Coordinates[2][2])
-        z2 = np.maximum(Coordinates[1][3], Coordinates[2][3])
+        # x1 = np.minimum(Coordinates[0][0], Coordinates[2][0])
+        # x2 = np.maximum(Coordinates[0][1], Coordinates[2][1])
+        # y1 = np.minimum(Coordinates[0][2], Coordinates[1][0])
+        # y2 = np.maximum(Coordinates[0][3], Coordinates[1][1])
+        # z1 = np.minimum(Coordinates[1][2], Coordinates[2][2])
+        # z2 = np.maximum(Coordinates[1][3], Coordinates[2][3])
+        # logging.info(f"The Cropping Coordinates Are X->{x1}:{x2}, Y->{y1}:{y2}, Z->{z1}:{z2}")
 
-        logging.info(f"The Cropping Coordinates Are X->{x1}:{x2}, Y->{y1}:{y2}, Z->{z1}:{z2}")
-        print(VolumeShape)
-        # slicer.util.updateVolumeFromArray(inputVolume, VolumeArray[z1:z2, x1:x2, y1:y2])
-        stopTime = time.time()
-        logging.info('Processing completed in {0:.2f} seconds'.format(stopTime - startTime))
+        # LabelVolume Tests
+        # imageOrigin = [0.0, 0.0, 0.0]
+        # imageSpacing = [0.4883, 0.4883, 2.5]
+        # imageDirections = [[-1, 0, 0], [0, -1, 0], [0, 0, -1]]
+        # a = np.zeros([VolumeShape[0], VolumeShape[1], VolumeShape[2]])
+        # a[0:VolumeShape[0], 0:VolumeShape[1], 0:VolumeShape[2]] = 1
+        # print(a)
+        # LabelmapVolumeNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLLabelMapVolumeNode', 'Heart-Label')
+        # LabelmapVolumeNode.SetOrigin(imageOrigin)
+        # LabelmapVolumeNode.SetSpacing(imageSpacing)
+        # LabelmapVolumeNode.SetIJKToRASDirections(imageDirections)
+        # slicer.util.updateVolumeFromArray(LabelmapVolumeNode, a)
+        # LabelmapVolumeNode.CreateDefaultDisplayNodes()
+        # LabelmapVolumeNode.CreateDefaultStorageNode()
+        # slicer.util.loadLabelVolume(r'c:\Users\msliv\Documents\test.nrrd')
+
+    def Segment(self, inputVolume, LocalProcessing=True, ProcessingURL="http://localhost:5000", Partial=True,
+                ReturnTime=True, ModelPath="", TracePath=""):
+
+        if not inputVolume:
+            raise ValueError("Input volume is invalid")
+
+        # Get Segmentation Start Time
+        SegmentStart = time.time()
+
+        # Convert Volume To NumPy Array
+        VolumeArray = np.array(slicer.util.arrayFromVolume(inputVolume), copy=True)
+        VolumeShape = VolumeArray.shape
+        SegmentedSlices = []
+
+        # Segment 3 Slicers From Each View
+        if Partial:
+            # Axial, Sagittal, Coronal
+            Names = ["Ax1", "Ax2", "Ax3", "Sag1", "Sag2", "Sag3", "Cor1", "Cor2", "Cor3"]
+            files = {}
+            ShiftValues = {}
+            RawSliceArrays = [[], [], []]
+            Coordinates = []
+
+            # Prepare Slices
+            for i in range(3):
+                Mid = int(VolumeShape[i] / 2)
+                if i == 0:
+                    logging.info(f"Preparing Axial Slices Number {Mid - 1}, {Mid}, {Mid + 1}")
+                elif i == 1:
+                    logging.info(f"Preparing Sagittal Slices Number {Mid - 1}, {Mid}, {Mid + 1}")
+                elif i == 2:
+                    logging.info(f"Preparing Coronal Slices Number {Mid - 1}, {Mid}, {Mid + 1}")
+                for j in range(-1, 2):
+                    if i == 0:
+                        # Prepare Axial Slices
+                        Arr = VolumeArray[Mid + j, :, :]
+                    elif i == 1:
+                        # Prepare Sagittal Slices
+                        Arr = VolumeArray[:, Mid + j, :]
+                    elif i == 2:
+                        # Prepare Coronal Slices
+                        Arr = VolumeArray[:, :, Mid + j]
+                    RawSliceArrays[i].append(Arr)
+                    if not LocalProcessing:
+                        ArrS = Arr.min()
+                        # Shift Array Values if There Exists -Ve Values, since -ve values are lost during PNG
+                        # conversion, and store the shift value to be sent
+                        if ArrS < 0:
+                            Arr -= ArrS
+                            ShiftValues[Names[0]] = ArrS
+                        else:
+                            ShiftValues[Names[0]] = 0
+                        SliceImg = Image.fromarray(Arr)
+                        SliceBytes = BytesIO()
+                        SliceImg.save(SliceBytes, format="PNG")
+                        SliceBytes.seek(0, 0)
+                        files[Names.pop(0)] = SliceBytes
+
+            if not LocalProcessing:
+                SliceSendReq = requests.post(ProcessingURL + "/segment/slices", files=files, data=ShiftValues)
+                SegmentedSlices = np.load(SliceSendReq.content)
+                logging.info(f"Segmented Slices Received From Server")
+                # logging.info(f"Received Cropping Coordinates From Online Server")
+            else:
+                from Models.Segmentation.Inference import Infer
+                model = Infer(trace_path=TracePath, model_path=ModelPath)
+                for slice in RawSliceArrays[0]:
+                    SegmentedSlices.append(model.predict(np.array(slice)))
+                # for x in range(0, 3):
+                #     print(x)
+                #     Coordinates.append(get_coords(RawSliceArrays[x]))
+
+                # Coordinates.append(get_coords(res))
+                logging.info(f"Segmentation Computed Locally")
+                # logging.info(f"Cropping Coordinates Calculated Locally")
+        else:
+            if not LocalProcessing:
+                CompressedVolume = BytesIO()
+                np.savez_compressed(CompressedVolume, Volume=VolumeArray)
+                CompressedVolume.seek(0)
+                SliceSendReq = requests.post(ProcessingURL + "/segment/volume", files={"Volume": CompressedVolume})
+                Data = np.load(SliceSendReq.content)
+                SegmentedSlices = np.copy(Data['Segmentation'])
+                Data.close()
+                logging.info(f"Segmented Slices Received From Server")
+                # logging.info(f"Received Cropping Coordinates From Online Server")
+            else:
+                from Models.Segmentation.Inference import Infer
+                model = Infer(trace_path=TracePath, model_path=ModelPath)
+
+                for i in range(VolumeShape[0]):
+                    # Segment Heart in Slice
+                    res = model.predict(VolumeArray[i, :, :])
+                    SegmentedSlices.append(res)
+                # SegmentedSlices = model.predict(np.asarray(RawSliceArrays[0]))
+                # for x in range(0, 3):
+                #     print(x)
+                #     Coordinates.append(get_coords(RawSliceArrays[x]))
+                # Coordinates.append(get_coords(res))
+                logging.info(f"Segmentation Computed Locally")
+                # logging.info(f"Cropping Coordinates Calculated Locally")
+
+        # Calculate Segmentation Time
+        SegmentEnd = time.time()
+        SegmentTime = SegmentEnd - SegmentStart
+
+        if ReturnTime:
+            return SegmentedSlices, SegmentTime
+        else:
+            return SegmentedSlices
+
+    def CheckDependencies(self):
+
+        # Install PyTorch if Not Detected
+        Torch = importlib.util.find_spec("torch")
+
+        if Torch is None:
+            logging.info('Installing PyTorch')
+            pip_install("torch")
+            logging.info('PyTorch Installed')
+        else:
+            logging.info('PyTorch Found')
+
+    def CreateSegmentationNode(self, Segmentation, Name="Heart"):
+
+        # Create a new LabelMapVolume
+        LabelMapVolumeNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLLabelMapVolumeNode', f'{Name}-Label')
+
+        # Update the LabelMapVolume from the given Segmentation array
+        slicer.util.updateVolumeFromArray(LabelMapVolumeNode, Segmentation)
+
+        # Create a SegmentationNode
+        segNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLSegmentationNode", f'{Name}-Segmentation')
+
+        # Load the LabelMapVolume into the SegmentationNode
+        slicer.modules.segmentations.logic().ImportLabelmapToSegmentationNode(LabelMapVolumeNode, segNode)
+
+        # Update Display
+        # LabelmapVolumeNode.CreateDefaultDisplayNodes()
+        # LabelmapVolumeNode.CreateDefaultStorageNode()
+
+    def GetCoordinates(self, Segmentation, Partial, Local):
+        pass
 
 
 #

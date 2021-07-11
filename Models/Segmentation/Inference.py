@@ -50,7 +50,10 @@ class Infer:
         self.shape = shape
         self.channels = channels
         self.model = torch.jit.load(self.trace)
-        self.model.load_state_dict(torch.load(self.path), strict=False)
+        if torch.cuda.is_available():
+            self.model.load_state_dict(torch.load(self.path))
+        else:
+            self.model.load_state_dict(torch.load(self.path, map_location=torch.device('cpu')))
 
     def predict(self, data: np.ndarray):
         slices = self.__prepare_data(data)
@@ -64,11 +67,11 @@ class Infer:
             src = np.expand_dims(src, -1)
         src = self.range_scale(src)
         src = zoom(src, (self.shape / src_shape[0], self.shape / src_shape[0], 1))
-        print(src.shape)
+        # print(src.shape)
         src = np.expand_dims(src, 0)
         if self.channels == 1:
             src = np.repeat(src, 3, 0)
-        print(src.shape)
+        # print(src.shape)
         src = np.moveaxis(src, -1, 0)
         src = torch.Tensor(src)
         return src
@@ -97,3 +100,5 @@ class Infer:
         src[src > 1] = 1.
         src[src < 0] = 0.
         return src
+
+# if __name__ == '__main__':
