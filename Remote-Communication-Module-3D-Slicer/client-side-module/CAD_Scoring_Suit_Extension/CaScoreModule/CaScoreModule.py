@@ -25,7 +25,7 @@ RepoRoot = os.path.dirname(
 
 sys.path.append(RepoRoot)
 
-from Models.Segmentation.Inference import Infer
+
 
 
 #
@@ -539,20 +539,13 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
             Coordinates = SliceSendReq.json()["Coor"]
             logging.info(f"Received Cropping Coordinates From Online Server")
         else:
+            # from Models.Segmentation.Inference import Infer
             # model = Infer(trace_path=RepoRoot+"/Models/Segmentation/model_arch.pth",
             #               model_path=RepoRoot+"/Models/Segmentation/HarD-MSEG-best.pth")
             # res = model.predict(np.array(RawSliceArrays[0]))
             # # for x in range(0, 3):
             # #     print(x)
             # #     Coordinates.append(get_coords(RawSliceArrays[x]))
-            # import matplotlib.pyplot as plt
-            # fig, ax = plt.subplots(2, 2)
-            # ax[0][0].imshow(res[0], cmap='gray')
-            #
-            # ax[0][1].imshow(res[0], cmap='gray')
-            #
-            # ax[1][0].imshow(res[0], cmap='gray')
-            # plt.show()
             # Coordinates.append(get_coords(res))
             logging.info(f"Cropping Coordinates Calculated Locally")
 
@@ -660,6 +653,7 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
                 logging.info(f"Segmented Slices Received From Server")
                 # logging.info(f"Received Cropping Coordinates From Online Server")
             else:
+                from Models.Segmentation.Inference import Infer
                 model = Infer(trace_path=RepoRoot + "/Models/Segmentation/model_arch.pth",
                               model_path=RepoRoot + "/Models/Segmentation/HarD-MSEG-best.pth")
                 for slice in RawSliceArrays[0]:
@@ -683,6 +677,7 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
                 logging.info(f"Segmented Slices Received From Server")
                 # logging.info(f"Received Cropping Coordinates From Online Server")
             else:
+                from Models.Segmentation.Inference import Infer
                 model = Infer(trace_path=RepoRoot + "/Models/Segmentation/model_arch.pth",
                               model_path=RepoRoot + "/Models/Segmentation/HarD-MSEG-best.pth")
 
