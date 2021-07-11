@@ -435,7 +435,7 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 threeDView = threeDWidget.threeDView()
                 threeDView.resetFocalPoint()
 
-            if CalSegNode or CroppingEnabled:
+            elif CalSegNode or CroppingEnabled:
                 Segmentation, SegmentationTime = self.logic.Segment(self.ui.inputSelector.currentNode(),
                                                                     self.LocalProcessing,
                                                                     self.ui.URLLineEdit.text, Partial, True,
