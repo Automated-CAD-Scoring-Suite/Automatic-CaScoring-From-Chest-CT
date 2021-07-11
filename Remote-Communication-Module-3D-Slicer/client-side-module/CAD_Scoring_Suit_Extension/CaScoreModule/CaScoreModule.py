@@ -433,13 +433,12 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 self.logic.CheckDependencies()
 
             # Compute output
-            if SegAndCrop:
+            if SegAndCrop and not self.LocalProcessing:
                 Coordinates = self.logic.SegAndCrop(VolumeArray, self.LocalProcessing,
                                                     self.ui.URLLineEdit.text, HeartModelPath, HeartTracePath)
 
             elif CalSegNode or CroppingEnabled:
-                Segmentation, SegmentationTime = self.logic.Segment(self.ui.inputSelector.currentNode(),
-                                                                    self.LocalProcessing,
+                Segmentation, SegmentationTime = self.logic.Segment(VolumeArray, self.LocalProcessing,
                                                                     self.ui.URLLineEdit.text, Partial, True,
                                                                     HeartModelPath, HeartTracePath)
 
@@ -453,9 +452,9 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
             if CroppingEnabled or SegAndCrop:
                 x1 = (Coordinates[0] - 20) if (Coordinates[0] - 20 >= 0) else 0
-                x2 = (Coordinates[1] - 20) if (Coordinates[1] - 20 >= 0) else VolumeArray.shape[1]
+                x2 = (Coordinates[1] + 20) if (Coordinates[1] + 20 >= 0) else VolumeArray.shape[1]
                 y1 = (Coordinates[2] - 20) if (Coordinates[2] - 20 >= 0) else 0
-                y2 = (Coordinates[3] - 20) if (Coordinates[3] - 20 >= 0) else VolumeArray.shape[3]
+                y2 = (Coordinates[3] + 20) if (Coordinates[3] + 20 >= 0) else VolumeArray.shape[3]
 
                 logging.info(f"The Cropping Coordinates Are X->{x1}:{x2}, Y->{y1}:{y2}")
                 NewVolume = VolumeArray[:, x1:x2, y1:y2]
@@ -465,7 +464,6 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 VolumeNodeID = CompositeNode.GetBackgroundVolumeID()
                 CurrentNode = slicer.mrmlScene.GetNodeByID(VolumeNodeID)
                 slicer.util.setSliceViewerLayers(foreground=CurrentNode, fit=True)
-
 
         except Exception as e:
             slicer.util.errorDisplay("Failed to compute results: " + str(e))
@@ -507,11 +505,11 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
         if not parameterNode.GetParameter("Local"):
             parameterNode.SetParameter("Local", "true")
         if not parameterNode.GetParameter("HeartModelPath"):
-            Path = RepoRoot + '/Models/Segmentation/HarD-MSEG-best.pth'
+            Path = RepoRoot + '\Models\Segmentation\HarD-MSEG-best.pth'
             if os.path.exists(Path):
                 parameterNode.SetParameter("HeartModelPath", Path)
         if not parameterNode.GetParameter("HeartTracePath"):
-            Path = RepoRoot + '/Models/Segmentation/model_arch.pth'
+            Path = RepoRoot + '\Models\Segmentation\model_arch.pth'
             if os.path.exists(Path):
                 parameterNode.SetParameter("HeartTracePath", Path)
 
@@ -626,7 +624,8 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
 
         logging.info(f"The Cropping Coordinates Are {Coordinates}")
         stopTime = time.time()
-        logging.info('Segmentation & Coordinates Calculation Completed in in {0:.2f} seconds'.format(stopTime - startTime))
+        logging.info(
+            'Segmentation & Coordinates Calculation Completed in in {0:.2f} seconds'.format(stopTime - startTime))
 
         return Coordinates
         # [z,x,y]
@@ -661,14 +660,14 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
     def Segment(self, inputVolume, LocalProcessing=True, ProcessingURL="http://localhost:5000", Partial=True,
                 ReturnTime=True, ModelPath="", TracePath=""):
 
-        if not inputVolume:
+        if inputVolume is None:
             raise ValueError("Input volume is invalid")
 
         # Get Segmentation Start Time
         SegmentStart = time.time()
 
         # Convert Volume To NumPy Array
-        VolumeArray = np.array(slicer.util.arrayFromVolume(inputVolume), copy=True)
+        VolumeArray = np.copy(inputVolume)
         VolumeShape = VolumeArray.shape
         SegmentedSlices = []
 
@@ -724,6 +723,7 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
             else:
                 from Models.Segmentation.Inference import Infer
                 model = Infer(trace_path=TracePath, model_path=ModelPath)
+
                 for slice in RawSliceArrays[0]:
                     SegmentedSlices.append(model.predict(np.array(slice)))
                 # for x in range(0, 3):
@@ -800,7 +800,15 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
         # LabelmapVolumeNode.CreateDefaultStorageNode()
 
     def GetCoordinates(self, Segmentation, Partial, Local):
-        pass
+        Coordinates = []
+        if Local:
+            if Partial:
+                Coordinates.append(get_coords(Segmentation))
+            else:
+                Z = (Segmentation.shape[0]) / 2
+                Coordinates.append(get_coords(Segmentation[Z - 1:Z + 1, :, :]))
+
+        return Coordinates
 
 
 #
