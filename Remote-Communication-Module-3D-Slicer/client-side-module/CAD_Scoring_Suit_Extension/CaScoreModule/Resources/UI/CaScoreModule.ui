@@ -76,8 +76,8 @@
         </property>
        </widget>
       </item>
-      <item row="5" column="0" colspan="2">
-       <widget class="QCheckBox" name="CalcificationSeg">
+      <item row="6" column="0" colspan="2">
+       <widget class="QCheckBox" name="CalSegNode">
         <property name="toolTip">
          <string>If Checked, Creates A Segmentation Node Showing Found Calcifications In Addition To Volume Computation</string>
         </property>
@@ -131,8 +131,8 @@
         </item>
        </layout>
       </item>
-      <item row="4" column="0" colspan="2">
-       <widget class="QCheckBox" name="CreateSegNode">
+      <item row="5" column="0" colspan="2">
+       <widget class="QCheckBox" name="HeartSegNode">
         <property name="toolTip">
          <string>If Checked, Creates A Segmentation Node Marking The Heart, Doesn't Work With Partial Segmentation</string>
         </property>
@@ -141,8 +141,21 @@
         </property>
        </widget>
       </item>
-      <item row="2" column="0">
-       <widget class="QCheckBox" name="CropppingEnable">
+      <item row="4" column="0">
+       <widget class="QCheckBox" name="PartialSegmentation">
+        <property name="toolTip">
+         <string>If Checked,Only Takes Samples To Segment For Cropping, Requires Enabling Cropping</string>
+        </property>
+        <property name="text">
+         <string>Partial Segmentation</string>
+        </property>
+        <property name="checked">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="0">
+       <widget class="QCheckBox" name="CroppingEnabled">
         <property name="toolTip">
          <string>If Checked, Crops Out The Background, Only Keeps The Heart</string>
         </property>
@@ -154,16 +167,10 @@
         </property>
        </widget>
       </item>
-      <item row="3" column="0">
-       <widget class="QCheckBox" name="PartialSegmentation">
-        <property name="toolTip">
-         <string>If Checked,Only Takes Samples To Segment For Cropping, Requires Enabling Cropping</string>
-        </property>
-        <property name="text">
-         <string>Partial Segmentation</string>
-        </property>
-        <property name="checked">
-         <bool>true</bool>
+      <item row="2" column="0" colspan="2">
+       <widget class="Line" name="line">
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
         </property>
        </widget>
       </item>
@@ -190,8 +197,14 @@
      <layout class="QVBoxLayout" name="verticalLayout_2">
       <item>
        <widget class="QLabel" name="HeartSegLabel">
+        <property name="frameShape">
+         <enum>QFrame::StyledPanel</enum>
+        </property>
         <property name="text">
          <string>Heart Segmentation Model:</string>
+        </property>
+        <property name="margin">
+         <number>0</number>
         </property>
        </widget>
       </item>
@@ -238,7 +251,17 @@
        </layout>
       </item>
       <item>
+       <widget class="Line" name="line_2">
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
+        </property>
+       </widget>
+      </item>
+      <item>
        <widget class="QLabel" name="CalModelLabel">
+        <property name="frameShape">
+         <enum>QFrame::StyledPanel</enum>
+        </property>
         <property name="text">
          <string>Calcifications Model Path:</string>
         </property>
@@ -314,13 +337,23 @@
         </property>
        </widget>
       </item>
-      <item row="2" column="0" colspan="2">
-       <widget class="QCheckBox" name="checkBox">
+      <item row="3" column="0" colspan="2">
+       <widget class="QCheckBox" name="Anonymize">
         <property name="toolTip">
          <string>If Checked, Removes Personal Data If Found Before Sending To The Server</string>
         </property>
         <property name="text">
          <string>Anonymize Data (If Applicable)</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0" colspan="2">
+       <widget class="QCheckBox" name="SegAndCrop">
+        <property name="toolTip">
+         <string>If Checked, Doesn't Request Segmented Data From The Server, Reduces Time But Forces Partial Segmentation &amp; Disables Creation of Segmentation Node</string>
+        </property>
+        <property name="text">
+         <string>Don't Request Segmentation</string>
         </property>
        </widget>
       </item>
@@ -341,12 +374,9 @@
        </widget>
       </item>
       <item row="1" column="0" colspan="2">
-       <widget class="QCheckBox" name="checkBox_2">
-        <property name="toolTip">
-         <string>If Checked, Doesn't Request Segmented Data From The Server, Reduces Time But Forces Partial Segmentation &amp; Disables Creation of Segmentation Node</string>
-        </property>
-        <property name="text">
-         <string>Don't Request Segmentation</string>
+       <widget class="Line" name="line_3">
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
         </property>
        </widget>
       </item>
@@ -354,7 +384,7 @@
     </widget>
    </item>
    <item>
-    <widget class="ctkCollapsibleButton" name="OnlineSettings_2" native="true">
+    <widget class="ctkCollapsibleButton" name="Processing" native="true">
      <property name="enabled">
       <bool>false</bool>
      </property>
