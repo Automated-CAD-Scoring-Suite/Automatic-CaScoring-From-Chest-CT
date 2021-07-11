@@ -177,6 +177,13 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.OnlineProcessingRadio.toggled.connect(self.ProcessingLocationSelect)
         self.ui.LocalProcessingRadio.toggled.connect(self.ProcessingLocationSelect)
 
+        # Checkboxes
+        self.ui.CroppingEnabled.toggled.connect(self.AllowableOperations)
+        self.ui.PartialSegmentation.toggled.connect(self.AllowableOperations)
+        self.ui.HeartSegNode.toggled.connect(self.AllowableOperations)
+        self.ui.CalSegNode.toggled.connect(self.AllowableOperations)
+        self.ui.SegAndCrop.toggled.connect(self.AllowableOperations)
+
         # Make sure parameter node is initialized (needed for module reload)
         self.initializeParameterNode()
 
@@ -270,6 +277,11 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # self.ui.imageThresholdSliderWidget.value = float(self._parameterNode.GetParameter("Threshold"))
         # self.ui.invertOutputCheckBox.checked = (self._parameterNode.GetParameter("Invert") == "true")
 
+        self.ui.HeartModelPath.text = self._parameterNode.GetParameter("HeartModelPath")
+        self.ui.HeartTracePath.text = self._parameterNode.GetParameter("HeartTracePath")
+        self.ui.CalModelPath.text = self._parameterNode.GetParameter("CalModelPath")
+        self.ui.CalTracePath.text = self._parameterNode.GetParameter("CalTracePath")
+
         # Update buttons states and tooltips
         if self._parameterNode.GetNodeReference("InputVolume"):
             self.ui.applyButton.toolTip = "Compute CaScore"
@@ -336,6 +348,8 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.ui.OnlineSettings.setEnabled(True)
             self.ui.OnlineSettings.collapsed = False
 
+    def AllowableOperations(self):
+        pass
 
     def onApplyButton(self):
         """
@@ -354,18 +368,40 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.Progress.collapsed = False
 
         try:
+            # Get Parameters
+            Partial = self._parameterNode.GetParameter("Partial")
+            HeartSegNode = self._parameterNode.GetParameter("HeartSegNode")
+            CalSegNode = self._parameterNode.GetParameter("CalSegNode")
+            CroppingEnabled = self._parameterNode.GetParameter("CroppingEnabled")
+            SegAndCrop = self._parameterNode.GetParameter("SegAndCrop")
+            HeartModelPath = self._parameterNode.GetParameter("HeartModelPath")
+            HeartTracePath = self._parameterNode.GetParameter("HeartTracePath")
+            CalModelPath = self._parameterNode.GetParameter("CalModelPath")
+            CalTracePath = self._parameterNode.GetParameter("CalTracePath")
+
+            # Initialize Variables
+            Segmentation = []
+            SegmentationTime = 0
+
             # Check For Dependencies & Install Missing Ones
             if self.LocalProcessing:
                 self.logic.CheckDependencies()
 
             # Compute output
-            # self.logic.process(self.ui.inputSelector.currentNode(), self.LocalProcessing,
-            #                    self.ui.URLLineEdit.text)
-            Segmentation, SegmentationTime = self.logic.Segment(self.ui.inputSelector.currentNode(),
-                                                                self.LocalProcessing,
-                                                                self.ui.URLLineEdit.text, False)
-            if not self.Partial:
+            if SegAndCrop:
+                self.logic.process(self.ui.inputSelector.currentNode(), self.LocalProcessing,
+                                   self.ui.URLLineEdit.text)
+
+            if CalSegNode or CroppingEnabled:
+                Segmentation, SegmentationTime = self.logic.Segment(self.ui.inputSelector.currentNode(),
+                                                                    self.LocalProcessing,
+                                                                    self.ui.URLLineEdit.text, False)
+
+            if not Partial and CalSegNode:
                 self.logic.CreateSegmentationNode(Segmentation, "Heart")
+
+            if CroppingEnabled:
+                Coordinates = self.logic.GetCoordinates(Segmentation, Partial, self.LocalProcessing)
 
         except Exception as e:
             slicer.util.errorDisplay("Failed to compute results: " + str(e))
@@ -703,6 +739,8 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
 
     def GetCoordinates(self, Segmentation, Partial, Local):
         pass
+
+
 #
 # CaScoreModuleTest
 #
