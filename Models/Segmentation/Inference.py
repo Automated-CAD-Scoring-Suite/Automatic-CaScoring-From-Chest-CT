@@ -50,7 +50,7 @@ class Infer:
         self.shape = shape
         self.channels = channels
         self.model = torch.jit.load(self.trace)
-        self.model.load_state_dict(torch.load(self.path))
+        self.model.load_state_dict(torch.load(self.path), strict=False)
 
     def predict(self, data: np.ndarray):
         slices = self.__prepare_data(data)
