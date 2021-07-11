@@ -26,8 +26,6 @@ RepoRoot = os.path.dirname(
 sys.path.append(RepoRoot)
 
 
-
-
 #
 # CaScoreModule
 #
@@ -368,16 +366,6 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.Progress.collapsed = False
 
         try:
-            # Get Parameters
-            Partial = self._parameterNode.GetParameter("Partial")
-            HeartSegNode = self._parameterNode.GetParameter("HeartSegNode")
-            CalSegNode = self._parameterNode.GetParameter("CalSegNode")
-            CroppingEnabled = self._parameterNode.GetParameter("CroppingEnabled")
-            SegAndCrop = self._parameterNode.GetParameter("SegAndCrop")
-            HeartModelPath = self._parameterNode.GetParameter("HeartModelPath")
-            HeartTracePath = self._parameterNode.GetParameter("HeartTracePath")
-            CalModelPath = self._parameterNode.GetParameter("CalModelPath")
-            CalTracePath = self._parameterNode.GetParameter("CalTracePath")
 
             # Initialize Variables
             Segmentation = []
@@ -396,6 +384,7 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 Segmentation, SegmentationTime = self.logic.Segment(self.ui.inputSelector.currentNode(),
                                                                     self.LocalProcessing,
                                                                     self.ui.URLLineEdit.text, False)
+                logging.info('Segmentation completed in {0:.2f} seconds'.format(SegmentationTime))
 
             if not Partial and CalSegNode:
                 self.logic.CreateSegmentationNode(Segmentation, "Heart")
