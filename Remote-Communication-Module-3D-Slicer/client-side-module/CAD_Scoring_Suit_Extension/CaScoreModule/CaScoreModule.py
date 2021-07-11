@@ -16,6 +16,7 @@ from slicer.ScriptedLoadableModule import *
 from slicer.util import VTKObservationMixin, pip_install
 
 # Processing Packages
+from Models.crop_roi import get_coords
 
 RepoRoot = os.path.dirname(
     os.path.dirname(
@@ -427,13 +428,19 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
             # Compute output
             if SegAndCrop:
-                self.logic.process(self.ui.inputSelector.currentNode(), self.LocalProcessing,
-                                   self.ui.URLLineEdit.text)
+                self.logic.SegAndCrop(self.ui.inputSelector.currentNode(), self.LocalProcessing,
+                                      self.ui.URLLineEdit.text, HeartModelPath, HeartTracePath)
+                layoutManager = slicer.app.layoutManager()
+                threeDWidget = layoutManager.threeDWidget(0)
+                threeDView = threeDWidget.threeDView()
+                threeDView.resetFocalPoint()
 
             if CalSegNode or CroppingEnabled:
                 Segmentation, SegmentationTime = self.logic.Segment(self.ui.inputSelector.currentNode(),
                                                                     self.LocalProcessing,
-                                                                    self.ui.URLLineEdit.text, False)
+                                                                    self.ui.URLLineEdit.text, Partial, True,
+                                                                    HeartModelPath, HeartTracePath)
+
                 logging.info('Segmentation completed in {0:.2f} seconds'.format(SegmentationTime))
 
             if not Partial and CalSegNode:
@@ -523,7 +530,8 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
         stopTime = time.time()
         logging.info('Processing completed in {0:.2f} seconds'.format(stopTime - startTime))
 
-    def process(self, inputVolume, LocalProcessing=True, ProcessingURL="http://localhost:5000"):
+    def SegAndCrop(self, inputVolume, LocalProcessing=True, ProcessingURL="http://localhost:5000",
+                   ModelPath="", TracePath=""):
 
         if not inputVolume:
             raise ValueError("Input volume is invalid")
@@ -586,14 +594,15 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
             Coordinates = SliceSendReq.json()["Coor"]
             logging.info(f"Received Cropping Coordinates From Online Server")
         else:
-            # from Models.Segmentation.Inference import Infer
-            # model = Infer(trace_path=RepoRoot+"/Models/Segmentation/model_arch.pth",
-            #               model_path=RepoRoot+"/Models/Segmentation/HarD-MSEG-best.pth")
-            # res = model.predict(np.array(RawSliceArrays[0]))
-            # # for x in range(0, 3):
-            # #     print(x)
-            # #     Coordinates.append(get_coords(RawSliceArrays[x]))
-            # Coordinates.append(get_coords(res))
+            from Models.Segmentation.Inference import Infer
+            model = Infer(trace_path=TracePath, model_path=ModelPath)
+            res = model.predict(np.array(RawSliceArrays[0]))
+            Coordinates.append(get_coords(res))
+
+            # for x in range(0, 3):
+            #     print(x)
+            #     Coordinates.append(get_coords(RawSliceArrays[x]))
+
             logging.info(f"Cropping Coordinates Calculated Locally")
 
         logging.info(f"The Cropping Coordinates Are {Coordinates}")
@@ -637,7 +646,7 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
         # slicer.util.loadLabelVolume(r'c:\Users\msliv\Documents\test.nrrd')
 
     def Segment(self, inputVolume, LocalProcessing=True, ProcessingURL="http://localhost:5000", Partial=True,
-                ReturnTime=True):
+                ReturnTime=True, ModelPath="", TracePath=""):
 
         if not inputVolume:
             raise ValueError("Input volume is invalid")
@@ -701,8 +710,7 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
                 # logging.info(f"Received Cropping Coordinates From Online Server")
             else:
                 from Models.Segmentation.Inference import Infer
-                model = Infer(trace_path=RepoRoot + "/Models/Segmentation/model_arch.pth",
-                              model_path=RepoRoot + "/Models/Segmentation/HarD-MSEG-best.pth")
+                model = Infer(trace_path=TracePath, model_path=ModelPath)
                 for slice in RawSliceArrays[0]:
                     SegmentedSlices.append(model.predict(np.array(slice)))
                 # for x in range(0, 3):
@@ -725,8 +733,7 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
                 # logging.info(f"Received Cropping Coordinates From Online Server")
             else:
                 from Models.Segmentation.Inference import Infer
-                model = Infer(trace_path=RepoRoot + "/Models/Segmentation/model_arch.pth",
-                              model_path=RepoRoot + "/Models/Segmentation/HarD-MSEG-best.pth")
+                model = Infer(trace_path=TracePath, model_path=ModelPath)
 
                 for i in range(VolumeShape[0]):
                     # Segment Heart in Slice
