@@ -16,7 +16,6 @@ from slicer.ScriptedLoadableModule import *
 from slicer.util import VTKObservationMixin, pip_install
 
 # Processing Packages
-from Models.crop_roi import get_coords
 
 RepoRoot = os.path.dirname(
     os.path.dirname(
@@ -27,6 +26,7 @@ RepoRoot = os.path.dirname(
 
 sys.path.append(RepoRoot)
 
+from Models.crop_roi import get_coords
 
 #
 # CaScoreModule
