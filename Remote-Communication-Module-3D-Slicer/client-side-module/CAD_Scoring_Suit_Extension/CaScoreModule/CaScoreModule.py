@@ -84,11 +84,12 @@ def registerSampleData():
         # Category and sample name displayed in Sample Data module
         category='CaScoreModule',
         sampleName='CaScoreModule1',
-        # Thumbnail should have size of approximately 260x280 pixels and stored in Resources/Icons folder.
-        # It can be created by Screen Capture module, "Capture all views" option enabled, "Number of images" set to "Single".
+        # Thumbnail should have size of approximately 260x280 pixels and stored in Resources/Icons folder. It can be
+        # created by Screen Capture module, "Capture all views" option enabled, "Number of images" set to "Single".
         thumbnailFileName=os.path.join(iconsPath, 'CaScoreModule1.png'),
         # Download URL and target file name
-        uris="https://github.com/Slicer/SlicerTestingData/releases/download/SHA256/998cb522173839c78657f4bc0ea907cea09fd04e44601f17c82ea27927937b95",
+        uris="https://github.com/Slicer/SlicerTestingData/releases/download/SHA256"
+             "/998cb522173839c78657f4bc0ea907cea09fd04e44601f17c82ea27927937b95",
         fileNames='CaScoreModule1.nrrd',
         # Checksum to ensure file integrity. Can be computed by this command:
         #  import hashlib; print(hashlib.sha256(open(filename, "rb").read()).hexdigest())
@@ -104,7 +105,8 @@ def registerSampleData():
         sampleName='CaScoreModule2',
         thumbnailFileName=os.path.join(iconsPath, 'CaScoreModule2.png'),
         # Download URL and target file name
-        uris="https://github.com/Slicer/SlicerTestingData/releases/download/SHA256/1a64f3f422eb3d1c9b093d1a18da354b13bcf307907c66317e2463ee530b7a97",
+        uris="https://github.com/Slicer/SlicerTestingData/releases/download/SHA256"
+             "/1a64f3f422eb3d1c9b093d1a18da354b13bcf307907c66317e2463ee530b7a97",
         fileNames='CaScoreModule2.nrrd',
         checksums='SHA256:1a64f3f422eb3d1c9b093d1a18da354b13bcf307907c66317e2463ee530b7a97',
         # This node name will be used when the data set is loaded
@@ -296,7 +298,8 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # self._parameterNode.SetParameter("Invert", "true" if self.ui.invertOutputCheckBox.checked else "false")
         # self._parameterNode.SetNodeReferenceID("OutputVolumeInverse", self.ui.invertedOutputSelector.currentNodeID)
         self._parameterNode.SetParameter("URL",
-                                         self.ui.URLLineEdit.text if self.ui.URLLineEdit.isEnabled() else "http://localhost:500")
+                                         self.ui.URLLineEdit.text if self.ui.URLLineEdit.isEnabled() else "http"
+                                                                                                          "://localhost:5000")
         self._parameterNode.SetParameter("Local", "true" if self.ui.LocalProcessingRadio.checked else "false")
 
         self._parameterNode.EndModify(wasModified)
@@ -419,7 +422,7 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
 
         # Convert Volume To NumPy Array
 
-        VolumeArray = np.array(slicer.util.arrayFromVolume(inputVolume))
+        VolumeArray = np.copy(np.array(slicer.util.arrayFromVolume(inputVolume)))
         VolumeShape = VolumeArray.shape
 
         # Cropping Pattern Start
@@ -431,6 +434,7 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
         files = {}
         ShiftValues = {}
         RawSliceArrays = [[], [], []]
+        Arr = []
         Coordinates = []
         # Prepare Slices
         for i in range(3):
@@ -474,7 +478,7 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
         else:
             # model = Infer(trace_path=RepoRoot+"/Models/Segmentation/model_arch.pth",
             #               model_path=RepoRoot+"/Models/Segmentation/HarD-MSEG-best.pth")
-            # res = model.predict(np.asarray(RawSliceArrays[0]))
+            # res = model.predict(np.array(RawSliceArrays[0]))
             # # for x in range(0, 3):
             # #     print(x)
             # #     Coordinates.append(get_coords(RawSliceArrays[x]))
