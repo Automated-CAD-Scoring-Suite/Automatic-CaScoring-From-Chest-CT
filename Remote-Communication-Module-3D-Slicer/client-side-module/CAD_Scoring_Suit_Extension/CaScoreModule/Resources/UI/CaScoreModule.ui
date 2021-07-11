@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>326</width>
-    <height>598</height>
+    <height>628</height>
    </rect>
   </property>
   <property name="toolTip">
@@ -211,6 +211,13 @@
       <item>
        <layout class="QHBoxLayout" name="horizontalLayout_3">
         <item>
+         <widget class="QLabel" name="label_2">
+          <property name="text">
+           <string>Model</string>
+          </property>
+         </widget>
+        </item>
+        <item>
          <widget class="QLineEdit" name="HeartModelPath">
           <property name="placeholderText">
            <string>Model Path</string>
@@ -234,6 +241,13 @@
       </item>
       <item>
        <layout class="QHBoxLayout" name="horizontalLayout_2">
+        <item>
+         <widget class="QLabel" name="label_3">
+          <property name="text">
+           <string>Trace  </string>
+          </property>
+         </widget>
+        </item>
         <item>
          <widget class="QLineEdit" name="HeartTracePath">
           <property name="placeholderText">
@@ -270,6 +284,13 @@
       <item>
        <layout class="QHBoxLayout" name="horizontalLayout_4">
         <item>
+         <widget class="QLabel" name="label_4">
+          <property name="text">
+           <string>Model</string>
+          </property>
+         </widget>
+        </item>
+        <item>
          <widget class="QLineEdit" name="CalModelPath">
           <property name="placeholderText">
            <string>Model Path</string>
@@ -293,6 +314,13 @@
       </item>
       <item>
        <layout class="QHBoxLayout" name="horizontalLayout_5">
+        <item>
+         <widget class="QLabel" name="label_5">
+          <property name="text">
+           <string>Trace  </string>
+          </property>
+         </widget>
+        </item>
         <item>
          <widget class="QLineEdit" name="CalTracePath">
           <property name="placeholderText">
@@ -337,16 +365,6 @@
         </property>
        </widget>
       </item>
-      <item row="3" column="0" colspan="2">
-       <widget class="QCheckBox" name="Anonymize">
-        <property name="toolTip">
-         <string>If Checked, Removes Personal Data If Found Before Sending To The Server</string>
-        </property>
-        <property name="text">
-         <string>Anonymize Data (If Applicable)</string>
-        </property>
-       </widget>
-      </item>
       <item row="2" column="0" colspan="2">
        <widget class="QCheckBox" name="SegAndCrop">
         <property name="toolTip">
@@ -354,6 +372,23 @@
         </property>
         <property name="text">
          <string>Don't Request Segmentation</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="0" colspan="2">
+       <widget class="Line" name="line_3">
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="0" colspan="2">
+       <widget class="QCheckBox" name="Anonymize">
+        <property name="toolTip">
+         <string>If Checked, Removes Personal Data If Found Before Sending To The Server</string>
+        </property>
+        <property name="text">
+         <string>Anonymize Data (If Applicable)</string>
         </property>
        </widget>
       </item>
@@ -370,13 +405,6 @@
         </property>
         <property name="text">
          <string>Server URL:</string>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="0" colspan="2">
-       <widget class="Line" name="line_3">
-        <property name="orientation">
-         <enum>Qt::Horizontal</enum>
         </property>
        </widget>
       </item>
