@@ -17,11 +17,16 @@ from slicer.util import VTKObservationMixin, pip_install
 # Processing Packages
 
 RepoRoot = os.path.dirname(
-    os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))))
+    os.path.dirname(
+        os.path.dirname(
+            os.path.dirname(
+                os.path.dirname(
+                    os.path.realpath(__file__))))))
+
 sys.path.append(RepoRoot)
 
-
 from Models.Segmentation.Inference import Infer
+
 
 #
 # CaScoreModule
@@ -353,6 +358,9 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
   Uses ScriptedLoadableModuleLogic base class, available at:
   https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
   """
+    finished = qt.Signal()
+    progress = qt.Signal(int)
+
     def __init__(self):
         """
     Called when the logic class is instantiated. Can be used for initializing member variables.
@@ -421,7 +429,7 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
         # Axial, Sagittal, Coronal
         Names = ["Ax1", "Ax2", "Ax3", "Sag1", "Sag2", "Sag3", "Cor1", "Cor2", "Cor3"]
         files = {}
-        data = {}
+        ShiftValues = {}
         RawSliceArrays = [[], [], []]
         Coordinates = []
         # Prepare Slices
@@ -450,9 +458,9 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
                     # and store the shift value to be sent
                     if ArrS < 0:
                         Arr -= ArrS
-                        data[Names[0]] = ArrS
+                        ShiftValues[Names[0]] = ArrS
                     else:
-                        data[Names[0]] = 0
+                        ShiftValues[Names[0]] = 0
                     SliceImg = Image.fromarray(Arr)
                     SliceBytes = BytesIO()
                     SliceImg.save(SliceBytes, format="PNG")
@@ -460,7 +468,7 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
                     files[Names.pop(0)] = SliceBytes
 
         if not LocalProcessing:
-            SliceSendReq = requests.post(ProcessingURL + "/crop", files=files, data=data)
+            SliceSendReq = requests.post(ProcessingURL + "/crop", files=files, data=ShiftValues)
             Coordinates = SliceSendReq.json()["Coor"]
             logging.info(f"Received Cropping Coordinates From Online Server")
         else:
@@ -661,6 +669,7 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
         # Update Display
         # LabelmapVolumeNode.CreateDefaultDisplayNodes()
         # LabelmapVolumeNode.CreateDefaultStorageNode()
+
 
 #
 # CaScoreModuleTest
