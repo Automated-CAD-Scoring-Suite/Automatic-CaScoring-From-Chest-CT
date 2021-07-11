@@ -384,7 +384,7 @@
     </widget>
    </item>
    <item>
-    <widget class="ctkCollapsibleButton" name="Processing" native="true">
+    <widget class="ctkCollapsibleButton" name="Progress" native="true">
      <property name="enabled">
       <bool>false</bool>
      </property>
