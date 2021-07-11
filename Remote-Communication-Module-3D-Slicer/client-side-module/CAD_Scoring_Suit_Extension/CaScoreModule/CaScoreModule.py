@@ -363,7 +363,6 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     def AllowableOperations(self):
 
-
         # Disable Partial Segmentation Option If Segmentation Node Creation Option is Enabled,
         # As We Need To Fully Segment The Heart, Also Disables Requesting Segmentation As It Is Required
 
@@ -402,12 +401,15 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.Progress.setEnabled(True)
         self.ui.Progress.collapsed = False
 
+        # Update Parameters
+        self.updateParameterNodeFromGUI()
+
         # Get Parameters
-        Partial = self._parameterNode.GetParameter("Partial")
-        HeartSegNode = self._parameterNode.GetParameter("HeartSegNode")
-        CalSegNode = self._parameterNode.GetParameter("CalSegNode")
-        CroppingEnabled = self._parameterNode.GetParameter("CroppingEnabled")
-        SegAndCrop = self._parameterNode.GetParameter("SegAndCrop")
+        Partial = bool(strtobool(self._parameterNode.GetParameter("Partial")))
+        HeartSegNode = bool(strtobool(self._parameterNode.GetParameter("HeartSegNode")))
+        CalSegNode = bool(strtobool(self._parameterNode.GetParameter("CalSegNode")))
+        CroppingEnabled = bool(strtobool(self._parameterNode.GetParameter("CroppingEnabled")))
+        SegAndCrop = bool(strtobool(self._parameterNode.GetParameter("SegAndCrop")))
         HeartModelPath = self._parameterNode.GetParameter("HeartModelPath")
         HeartTracePath = self._parameterNode.GetParameter("HeartTracePath")
         CalModelPath = self._parameterNode.GetParameter("CalModelPath")
@@ -479,6 +481,14 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
             parameterNode.SetParameter("URL", "http://localhost:5000")
         if not parameterNode.GetParameter("Local"):
             parameterNode.SetParameter("Local", "true")
+        if not parameterNode.GetParameter("HeartModelPath"):
+            Path = RepoRoot + '/Models/Segmentation/HarD-MSEG-best.pth'
+            if os.path.exists(Path):
+                parameterNode.SetParameter("HeartModelPath", Path)
+        if not parameterNode.GetParameter("HeartTracePath"):
+            Path = RepoRoot + '/Models/Segmentation/model_arch.pth'
+            if os.path.exists(Path):
+                parameterNode.SetParameter("HeartTracePath", Path)
 
     def processOld(self, inputVolume, outputVolume, imageThreshold, invert=False, showResult=True):
         """
