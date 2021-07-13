@@ -53,7 +53,7 @@ class Infer:
         if torch.cuda.is_available():
             self.model.load_state_dict(torch.load(self.path))
         else:
-            self.model.load_state_dict(torch.load(self.path, map_location=torch.device('cpu')))
+            self.model.load_state_dict(torch.load(self.path, map_location=torch.device('cpu')), strict=False)
 
     def predict(self, data: np.ndarray):
         slices = self.__prepare_data(data)

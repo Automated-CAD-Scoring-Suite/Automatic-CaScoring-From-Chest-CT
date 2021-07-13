@@ -505,11 +505,11 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
         if not parameterNode.GetParameter("Local"):
             parameterNode.SetParameter("Local", "true")
         if not parameterNode.GetParameter("HeartModelPath"):
-            Path = RepoRoot + '\Models\Segmentation\HarD-MSEG-best.pth'
+            Path = RepoRoot + '/Models/Segmentation/HarD-MSEG-best.pth'
             if os.path.exists(Path):
                 parameterNode.SetParameter("HeartModelPath", Path)
         if not parameterNode.GetParameter("HeartTracePath"):
-            Path = RepoRoot + '\Models\Segmentation\model_arch.pth'
+            Path = RepoRoot + '/Models/Segmentation/model_arch.pth'
             if os.path.exists(Path):
                 parameterNode.SetParameter("HeartTracePath", Path)
 
@@ -722,7 +722,9 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
                 # logging.info(f"Received Cropping Coordinates From Online Server")
             else:
                 from Models.Segmentation.Inference import Infer
-                model = Infer(trace_path=TracePath, model_path=ModelPath)
+                model = Infer(trace_path=TracePath,
+                              model_path=ModelPath,
+                              axis=-1, slices=1, shape=512)
 
                 for slice in RawSliceArrays[0]:
                     SegmentedSlices.append(model.predict(np.array(slice)))
@@ -746,7 +748,8 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
                 # logging.info(f"Received Cropping Coordinates From Online Server")
             else:
                 from Models.Segmentation.Inference import Infer
-                model = Infer(trace_path=TracePath, model_path=ModelPath)
+                model = Infer(trace_path=TracePath, model_path=ModelPath,
+                              axis=-1, slices=1, shape=512)
 
                 for i in range(VolumeShape[0]):
                     # Segment Heart in Slice
@@ -803,10 +806,10 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
         Coordinates = []
         if Local:
             if Partial:
-                Coordinates.append(get_coords(Segmentation))
+                Coordinates = get_coords(Segmentation)
             else:
                 Z = (Segmentation.shape[0]) / 2
-                Coordinates.append(get_coords(Segmentation[Z - 1:Z + 1, :, :]))
+                Coordinates = get_coords(Segmentation[Z - 1:Z + 1, :, :])
 
         return Coordinates
 
