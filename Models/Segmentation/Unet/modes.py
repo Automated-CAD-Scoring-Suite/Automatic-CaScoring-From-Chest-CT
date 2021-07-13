@@ -1,5 +1,5 @@
 #
-# __enums.py
+# modes.py
 # Author: Ahmad Abdalmageed
 # Date: 7/13/21
 #
