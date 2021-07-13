@@ -5,6 +5,7 @@
 from tensorflow.keras.layers import Conv2D, Conv3D, Conv2DTranspose, Conv3DTranspose, MaxPool2D, MaxPool3D,\
     AveragePooling2D, AveragePooling3D, Concatenate, Input, BatchNormalization, Dropout, UpSampling2D, UpSampling3D
 from tensorflow.keras.models import Model
+from tensorflow.keras.regularizers import l2
 from enum import Enum
 
 
@@ -47,7 +48,6 @@ class UNet:
         :param pool:
         """
         print("Initializing UNET")
-        self.dimensional = conv
         self.transpose = False
         self.up_sample = False
 
@@ -63,7 +63,7 @@ class UNet:
         self.Pool = Pooling[pool].value
 
     def __call__(self, levels, convolutions, input_shape, kernel_size, out_channels=1, activation='relu',
-                 batch_norm=False, drop_out=None, initial_features=16):
+                 batch_norm=False, drop_out=None, initial_features=32):
         """
             Implementation of the Unet Arch, using tensorflow Layers
             and Functional API
@@ -79,7 +79,7 @@ class UNet:
         :return: tf Model() instance
         """
         # Parameters that are constant for all Layers
-        parameters = dict(kernel_size=kernel_size, padding='same', activation=activation)
+        parameters = dict(kernel_size=kernel_size, padding='same', activation=activation, kernel_regularizer=l2())
 
         # Model Input
         inputs = Input(input_shape)
@@ -87,20 +87,21 @@ class UNet:
 
         # Encoder Part
         connects = {}
-        print(f"Connections for a {levels} is {len(connects)} ... ")
 
         for level in range(levels):
-            for _ in range(convolutions):
-                x = self.contract(initial_features * (2 ** level), **parameters)(x)
-                if batch_norm:
-                    x = BatchNormalization()(x)
-                if drop_out is not None:
-                    x = Dropout(drop_out)(x)
+            for conv in range(convolutions):
+                x = self.contract(initial_features * (2 ** level) * (conv + 1), **parameters)(x)
+
+            if batch_norm:
+                x = BatchNormalization()(x)
+            if drop_out is not None:
+                x = Dropout(drop_out)(x)
 
             if level < levels - 1:
                 connects[level] = x
                 x = self.Pool()(x)
 
+        print(f"Connections for a {levels} is {len(connects)} ... ")
         # Decoder Part
         for level in reversed(range(levels - 1)):
             if self.transpose:
@@ -110,23 +111,24 @@ class UNet:
 
             x = Concatenate()([x, connects[level]])
 
-            for _ in range(convolutions):
-                x = self.contract(initial_features * 2 ** level, **parameters)(x)
-                if batch_norm:
-                    x = BatchNormalization()(x)
-                if drop_out is not None:
-                    x = Dropout(drop_out)(x)
+            for conv in range(convolutions):
+                x = self.contract(initial_features * 2 ** (level + 1), **parameters)(x)
+            # if batch_norm:
+            #     x = BatchNormalization()(x)
+            # if drop_out is not None:
+            #     x = Dropout(drop_out)(x)
 
         # Model Output
         x = self.contract(out_channels, kernel_size=1, activation='sigmoid', padding='same')(x)
-
         return Model(inputs=[inputs], outputs=[x], name=f'Unet_{levels}x{convolutions}_{initial_features}F')
 
 
 # TESTING
 if __name__ == '__main__':
     from tensorflow.keras.utils import plot_model
-    unet3D = UNet("conv3D", up_sample="upSample3D", transpose=None, pool="average3D")
-    model = unet3D(4, 4, (128, 128, 128, 1), (3, 3, 3))
+    unet3D = UNet("conv3D", up_sample="upSample3D", transpose=None, pool="max3D")
+    model = unet3D(5, 2, (112, 112, 112, 1), (3, 3, 3))
+    # unet = UNet(transpose='upSample3D')
+    # model = unet(4, 2, (128, 128, 1), (3, 3))
     print(model.summary())
     plot_model(model, show_shapes=True)
