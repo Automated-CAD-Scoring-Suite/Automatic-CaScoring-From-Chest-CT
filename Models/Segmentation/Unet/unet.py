@@ -37,7 +37,7 @@ class UNet:
         self.Pool = Pooling[pool].value
 
     def __call__(self, levels, convolutions, input_shape, kernel_size, out_channels=1, activation='relu',
-                 batch_norm=False, drop_out=None, initial_features=32, add_conv=1, ex_filters=64):
+                 batch_norm=False, drop_out=None, initial_features=32):
         """
             Implementation of the Unet Arch, using tensorflow Layers
             and Functional API
@@ -50,8 +50,6 @@ class UNet:
         :param batch_norm: Boolean used to apply Batch normalization
         :param drop_out: if Float Apply Drop out
         :param initial_features: Number of Initial Convolutional Features
-        :param add_conv: Number of Extra Convolutions added to the Unet After Last Layer
-        :param ex_filters: Filter Numbers of these Extra Filters
         :return: tf Model() instance
         """
         # Parameters that are constant for all Layers
@@ -96,10 +94,6 @@ class UNet:
                     x = self.contract(initial_features * 2 ** level, **parameters)(x)
                 else:
                     x = self.contract(initial_features * 2 ** (level+1), **parameters)(x)
-
-        # Extra Convolutions added for different Designs
-        for _ in range(add_conv):
-            x = self.contract(ex_filters, **parameters)(x)
 
         # Model Output
         x = self.contract(out_channels, kernel_size=1, activation='sigmoid', padding='same')(x)
