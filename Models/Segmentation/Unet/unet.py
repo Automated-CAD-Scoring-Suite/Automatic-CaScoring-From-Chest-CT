@@ -1,35 +1,10 @@
 #
 # U-NET TF Implementation
 #
-
-from tensorflow.keras.layers import Conv2D, Conv3D, Conv2DTranspose, Conv3DTranspose, MaxPool2D, MaxPool3D,\
-    AveragePooling2D, AveragePooling3D, Concatenate, Input, BatchNormalization, Dropout, UpSampling2D, UpSampling3D
 from tensorflow.keras.models import Model
 from tensorflow.keras.regularizers import l2
-from enum import Enum
-
-
-# Modes Used by the User
-class Transpose(Enum):
-    transpose2D = Conv2DTranspose
-    transpose3D = Conv3DTranspose
-
-
-class UpSample(Enum):
-    upSample2D = UpSampling2D
-    upSample3D = UpSampling3D
-
-
-class Conv(Enum):
-    conv2D = Conv2D
-    conv3D = Conv3D
-
-
-class Pooling(Enum):
-    max2D = MaxPool2D
-    max3D = MaxPool3D
-    average2D = AveragePooling2D
-    average3D = AveragePooling3D
+from tensorflow.keras.layers import Concatenate, Input, BatchNormalization, Dropout
+from __enums import Conv, Transpose, Pooling, UpSample
 
 
 class UNet:
@@ -47,7 +22,7 @@ class UNet:
         :param transpose:
         :param pool:
         """
-        print("Initializing UNET")
+        print("Initializing Unet")
         self.transpose = False
         self.up_sample = False
 
@@ -63,7 +38,7 @@ class UNet:
         self.Pool = Pooling[pool].value
 
     def __call__(self, levels, convolutions, input_shape, kernel_size, out_channels=1, activation='relu',
-                 batch_norm=False, drop_out=None, initial_features=32):
+                 batch_norm=False, drop_out=None, initial_features=32, add_conv=2, ex_filters=64):
         """
             Implementation of the Unet Arch, using tensorflow Layers
             and Functional API
@@ -76,10 +51,12 @@ class UNet:
         :param batch_norm: Boolean used to apply Batch normalization
         :param drop_out: if Float Apply Drop out
         :param initial_features: Number of Initial Convolutional Features
+        :param add_conv: Number of Extra Convolutions added to the Unet After Last Layer
+        :param ex_filters: Filter Numbers of these Extra Filters
         :return: tf Model() instance
         """
         # Parameters that are constant for all Layers
-        parameters = dict(kernel_size=kernel_size, padding='same', activation=activation, kernel_regularizer=l2())
+        parameters = dict(kernel_size=kernel_size, padding='same', activation=activation)
 
         # Model Input
         inputs = Input(input_shape)
@@ -113,10 +90,10 @@ class UNet:
 
             for conv in range(convolutions):
                 x = self.contract(initial_features * 2 ** (level + 1), **parameters)(x)
-            # if batch_norm:
-            #     x = BatchNormalization()(x)
-            # if drop_out is not None:
-            #     x = Dropout(drop_out)(x)
+
+        # Extra Convolutions added for different Designs
+        for _ in range(add_conv):
+            x = self.contract(ex_filters, **parameters)(x)
 
         # Model Output
         x = self.contract(out_channels, kernel_size=1, activation='sigmoid', padding='same')(x)
@@ -126,9 +103,9 @@ class UNet:
 # TESTING
 if __name__ == '__main__':
     from tensorflow.keras.utils import plot_model
-    unet3D = UNet("conv3D", up_sample="upSample3D", transpose=None, pool="max3D")
-    model = unet3D(5, 2, (112, 112, 112, 1), (3, 3, 3))
-    # unet = UNet(transpose='upSample3D')
-    # model = unet(4, 2, (128, 128, 1), (3, 3))
+    uNet3D = UNet("conv3D", up_sample="upSample3D", transpose=None, pool="max3D")
+    model = uNet3D(4, 2, (112, 112, 112, 1), (3, 3, 3))
+    # uNet = UNet(transpose='upSample3D')
+    # model = uNet(4, 2, (128, 128, 1), (3, 3))
     print(model.summary())
     plot_model(model, show_shapes=True)
