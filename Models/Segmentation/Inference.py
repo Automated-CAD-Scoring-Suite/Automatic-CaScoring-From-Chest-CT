@@ -3,6 +3,7 @@
 # Author: Ahmad Abdalmageed
 # Date: 6/10/21
 #
+import logging
 
 import numpy as np
 import torch
@@ -51,8 +52,10 @@ class Infer:
         self.channels = channels
         self.model = torch.jit.load(self.trace)
         if torch.cuda.is_available():
+            logging.info("GPU Processing")
             self.model.load_state_dict(torch.load(self.path))
         else:
+            logging.info("CPU Processing")
             self.model.load_state_dict(torch.load(self.path, map_location=torch.device('cpu')), strict=False)
 
     def predict(self, data: np.ndarray):
