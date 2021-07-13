@@ -717,7 +717,11 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
 
             if not LocalProcessing:
                 SliceSendReq = requests.post(ProcessingURL + "/segment/slices", files=files, data=ShiftValues)
-                SegmentedSlices = np.load(SliceSendReq.content)
+                Response = BytesIO(SliceSendReq.content)
+                Response.seek(0)
+                Data = np.load(Response)
+                SegmentedSlices = np.copy(Data["SegmentedSlices"])
+                Data.close()
                 logging.info(f"Segmented Slices Received From Server")
                 # logging.info(f"Received Cropping Coordinates From Online Server")
             else:
@@ -741,7 +745,9 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
                 np.savez_compressed(CompressedVolume, Volume=VolumeArray)
                 CompressedVolume.seek(0)
                 SliceSendReq = requests.post(ProcessingURL + "/segment/volume", files={"Volume": CompressedVolume})
-                Data = np.load(SliceSendReq.content)
+                Response = BytesIO(SliceSendReq.content)
+                Response.seek(0)
+                Data = np.load(Response)
                 SegmentedSlices = np.copy(Data['Segmentation'])
                 Data.close()
                 logging.info(f"Segmented Slices Received From Server")
@@ -804,12 +810,11 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
 
     def GetCoordinates(self, Segmentation, Partial, Local):
         Coordinates = []
-        if Local:
-            if Partial:
-                Coordinates = get_coords(Segmentation)
-            else:
-                Z = (Segmentation.shape[0]) / 2
-                Coordinates = get_coords(Segmentation[Z - 1:Z + 1, :, :])
+        if Partial:
+            Coordinates = get_coords(Segmentation)
+        else:
+            Z = (Segmentation.shape[0]) / 2
+            Coordinates = get_coords(Segmentation[Z - 1:Z + 1, :, :])
 
         return Coordinates
 
