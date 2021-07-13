@@ -8,6 +8,7 @@ from distutils.util import strtobool
 
 import numpy as np
 import requests
+from requests.exceptions import ConnectionError
 import slicer
 import vtk
 import qt
@@ -416,9 +417,18 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         HeartTracePath = self._parameterNode.GetParameter("HeartTracePath")
         CalModelPath = self._parameterNode.GetParameter("CalModelPath")
         CalTracePath = self._parameterNode.GetParameter("CalTracePath")
+        ServerURL = self._parameterNode.GetParameter("URL")
 
         # Get Input Volume
         InputVolumeNode = self.ui.inputSelector.currentNode()
+
+        if not self.LocalProcessing:
+            try:
+                request = requests.get(ServerURL)
+            except ConnectionError:
+                print('Couldn\'t Connect To The Server')
+                slicer.util.errorDisplay("Couldn't Connect To The Server")
+                raise RuntimeError("Couldn't Connect To The Server")
 
         try:
 
@@ -435,11 +445,11 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             # Compute output
             if SegAndCrop and not self.LocalProcessing:
                 Coordinates = self.logic.SegAndCrop(VolumeArray, self.LocalProcessing,
-                                                    self.ui.URLLineEdit.text, HeartModelPath, HeartTracePath)
+                                                    ServerURL, HeartModelPath, HeartTracePath)
 
             elif CalSegNode or CroppingEnabled:
                 Segmentation, SegmentationTime = self.logic.Segment(VolumeArray, self.LocalProcessing,
-                                                                    self.ui.URLLineEdit.text, Partial, True,
+                                                                    ServerURL, Partial, True,
                                                                     HeartModelPath, HeartTracePath)
 
                 logging.info('Segmentation completed in {0:.2f} seconds'.format(SegmentationTime))
@@ -549,6 +559,7 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
     def SegAndCrop(self, inputVolume, LocalProcessing=True, ProcessingURL="http://localhost:5000",
                    ModelPath="", TracePath=""):
 
+        # TODO: Receive Routes From Caller
         if inputVolume is None:
             raise ValueError("Input volume is invalid")
 
@@ -659,7 +670,7 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
 
     def Segment(self, inputVolume, LocalProcessing=True, ProcessingURL="http://localhost:5000", Partial=True,
                 ReturnTime=True, ModelPath="", TracePath=""):
-
+        # TODO: Receive Routes From Caller
         if inputVolume is None:
             raise ValueError("Input volume is invalid")
 
