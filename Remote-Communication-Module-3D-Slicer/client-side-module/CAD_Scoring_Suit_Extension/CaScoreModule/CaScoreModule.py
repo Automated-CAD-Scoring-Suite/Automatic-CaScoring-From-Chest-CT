@@ -447,14 +447,14 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 Coordinates = self.logic.SegAndCrop(VolumeArray, self.LocalProcessing,
                                                     ServerURL, HeartModelPath, HeartTracePath)
 
-            elif CalSegNode or CroppingEnabled:
+            elif HeartSegNode or CroppingEnabled:
                 Segmentation, SegmentationTime = self.logic.Segment(VolumeArray, self.LocalProcessing,
                                                                     ServerURL, Partial, True,
                                                                     HeartModelPath, HeartTracePath)
 
                 logging.info('Segmentation completed in {0:.2f} seconds'.format(SegmentationTime))
 
-            if not Partial and CalSegNode:
+            if not Partial and HeartSegNode:
                 self.logic.CreateSegmentationNode(Segmentation, "Heart")
 
             if CroppingEnabled and not SegAndCrop:
