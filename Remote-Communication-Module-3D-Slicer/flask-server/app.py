@@ -1,5 +1,7 @@
+import logging
 import os
 import sys
+import time
 from io import BytesIO
 
 import numpy as np
@@ -142,11 +144,17 @@ def SegmentVolume():
         Data = np.load(VolumeCompressed)
         VolumeArray = Data['Volume']
 
+        Start = time.time()
         # Loop Over Axial Slices
         for i in range(VolumeArray.shape[0]):
+            SliceStart = time.time()
             # Segment Heart in Slice
             res = model.predict(VolumeArray[i, :, :])
             Segmentation.append(res)
+            SliceEnd = time.time()
+            print("Segmented Slice Number {} in {:.2f}".format(i, (SliceEnd - SliceStart)))
+        End = time.time()
+        logging.info('Segmentation completed in {0:.2f} seconds'.format(End - Start))
 
         # Compress Segmentation Array
         CompressedArray = BytesIO()
