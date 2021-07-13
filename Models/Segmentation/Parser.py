@@ -10,10 +10,28 @@ import cv2
 import os
 
 training = 'Data/Training/'
-target_image = 'Data2/image'
-target_mask = 'Data2/mask'
+validation = 'Data/Validation/'
+train_target_image = 'Data2/Training/image'
+train_target_mask = 'Data2/Training/mask'
+valid_target_image = 'Data2/Validation/image'
+valid_target_mask = 'Data2/Validation/mask'
 target_npy_train = 'Data3/train_npz'
 target_npy_test = 'Data3/test_vol_h5'
+target = None
+target_image = None
+target_mask = None
+
+SAVE_NPY = False
+PARSE_Train = True
+
+if PARSE_Train:
+    target_image = train_target_image
+    target_mask = train_target_mask
+    target = training
+else:
+    target_image = valid_target_image
+    target_mask = valid_target_mask
+    target = validation
 
 
 def zoom3D(img: np.ndarray, factor: float) -> np.ndarray:
@@ -45,18 +63,17 @@ def range_scale(img) -> np.ndarray:
 
 
 if __name__ == '__main__':
-    SAVE_NPY = True
-    FILES = [file for file in sorted(os.listdir(training)) if file.startswith("ct_train")]
+    FILES = [file for file in sorted(os.listdir(target)) if file.startswith("ct_train")]
 
     for FILE in FILES:
         case = FILE[-2:]
         # Get each case File Path
-        FILE_PATH = os.path.join(training, FILE)
+        FILE_PATH = os.path.join(target, FILE)
 
         # Extract the Files Paths
         IMAGING_FILES = [image for image in sorted(os.listdir(FILE_PATH)) if image.endswith("imaging.nii.gz")][0]
         SEGMENT_FILES = [segment for segment in sorted(os.listdir(FILE_PATH))
-                         if segment.endswith("segmentation.nii.gz")][0]
+                         if segment.endswith("seg_norm.nii.gz")][0]
 
         IMAGING_PATH = os.path.join(FILE_PATH, IMAGING_FILES)
         SEGMENT_PATH = os.path.join(FILE_PATH, SEGMENT_FILES)
@@ -74,8 +91,8 @@ if __name__ == '__main__':
 
         IMAGING_DATA = range_scale(IMAGING_DATA)
 
-        IMAGING_DATA = zoom3D(IMAGING_DATA, 2)
-        SEGMENT_DATA = zoom3D(SEGMENT_DATA, 2)
+        # IMAGING_DATA = zoom3D(IMAGING_DATA, 2)
+        # SEGMENT_DATA = zoom3D(SEGMENT_DATA, 2)
 
         SEGMENT_DATA[SEGMENT_DATA <= 0.5] = 0.0
         SEGMENT_DATA[SEGMENT_DATA > 0.5] = 1.0
@@ -96,14 +113,14 @@ if __name__ == '__main__':
             os.makedirs(target_mask)
 
         print(f"Slicing and Dicing .. ", flush=False)
-        for s in range(IMAGING_DATA.shape[0]):
+        for s in range(IMAGING_DATA.shape[-1]):
             # Slicing the Required Axis
             z_img = IMAGING_DATA[:, :, s]
             z_seg = SEGMENT_DATA[:, :, s]
 
             # Saving as PNG
-            cv2.imwrite(os.path.join(target_image, f"{case}0{s}.png"), z_img * 255)
-            cv2.imwrite(os.path.join(target_mask, f"{case}0{s}.png"), z_seg * 255)
+            cv2.imwrite(os.path.join(target_image, f"case_{case}_slice_{s}.png"), z_img * 255)
+            cv2.imwrite(os.path.join(target_mask, f"case_{case}_slice_{s}.png"), z_seg * 255)
 
             # Saving as NPZ
             if SAVE_NPY:

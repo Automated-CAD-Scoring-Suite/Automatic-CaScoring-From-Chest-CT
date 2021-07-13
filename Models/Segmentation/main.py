@@ -1,23 +1,20 @@
 #
 # Main Segmentation
 #
-import numpy as np
+import os
 
 import tensorflow as tf
-import nibabel as nib
 from unet import UNet
 import callbacks as cb
-from functions import Dice, Dice_Loss
-import matplotlib.pyplot as plt
+from functions import dice_coef_loss, dice_coef
 from Generator import NiftyGen, NiftyAugmentor
 
+# Script Variables
 Testing = False
-training = 'Data/Training'
-model_path = 'Model_Weights'
-validation = 'Data/Validation'
+training = 'Data/Training/'
+model_path = 'Model_Weights/'
+validation = 'Data/Validation/'
 log_dir = './logs/'
-
-# Adding Implementation from Challenge Paper
 
 # TF Configurations
 gpus = tf.config.list_physical_devices('GPU')
@@ -31,72 +28,63 @@ if gpus:
     except RuntimeError as e:
         # Memory growth must be set before GPUs have been initialized
         print(e)
-
-# Train Consts
+################################################################################################################
+# MODEL PARAMETERS
 down_factor = 8
-input_shape = (512 // down_factor, 512 // down_factor, 1)
-
+input_shape = (512//down_factor, 512//down_factor, 1)
+# input_shape = (128, 128, 1)
 levels = 4
-kernel_size = (3, 3, 3)
+kernel_size = (3, 3)
 convolutions = 2
-initial_features = 16
-
-batch_norm = True
+initial_features = 32
+batch_norm = False
 drop_out = 0.5
-activation = 'elu'
+activation = 'relu'
+lr = 0.001
+optimizer = tf.keras.optimizers.Adam(lr)
+####################################################################################################################
+# Augmentation Parameters
+aug = NiftyAugmentor([-10, 10, 0], [0.95, 1, 1.1], [0, 1])
 
-start = 0
-batch_size = 50
+# Dataset Loader, NIFTY Loader
+gen = NiftyGen(training, augmenter=aug, down_factor=down_factor, save=False)
+gen_val = NiftyGen(validation, augmenter=None, down_factor=down_factor)
 
-# Instances
-# TODO: Change Augmentation Class Structure
-aug = None
-
-gen = NiftyGen(training, batch_size=batch_size, batch_start=start,
-               augmenter=aug, down_factor=down_factor, save=True)
-
-gen_val = NiftyGen(validation, batch_size=batch_size, batch_start=start, augmenter=None, down_factor=down_factor)
-
-# UNet2D = UNet()
-UNet3D = UNet(conv="conv3D", up_sample="transpose3D", pool="max3D")
-# HeatMap3DReg = UNet(conv="conv3d", up_sample="upSample3D", pool="average3D")
-
-model = UNet3D(levels, convolutions, input_shape, kernel_size, activation=activation,
+# MODEL INSTANTIATION
+UNet2D = UNet(transpose='transpose2D')
+model = UNet2D(levels, convolutions, input_shape, kernel_size, activation=activation,
                batch_norm=batch_norm, drop_out=drop_out, initial_features=initial_features)
 
 print(model.summary())
-
+###################################################################################################################
+# TRAINING
 callbacks = [
     cb.GarbageCollect(),
     tf.keras.callbacks.ModelCheckpoint(filepath=f'{model_path}/{model.name}_checkpoint.h5', save_freq='epoch'),
-    tf.keras.callbacks.EarlyStopping(monitor='Dice', min_delta=0.001, patience=10),
+    tf.keras.callbacks.EarlyStopping(monitor='loss', min_delta=0.001, patience=20),
     tf.keras.callbacks.ReduceLROnPlateau(),
-    tf.keras.callbacks.TensorBoard(log_dir=log_dir, profile_batch='10, 15'),
     cb.DisplayCallback()
 ]
 
 if not Testing:
     print("Training on ", gpus[0].name)
     # Training
-    model.compile(optimizer='adam', loss=[Dice_Loss], metrics=['accuracy', Dice])
+    model.compile(optimizer=optimizer, loss=dice_coef_loss, metrics=['accuracy', dice_coef])
 
     with tf.device("/" + gpus[0].name[10:]):
-        model.fit(gen, epochs=30, callbacks=callbacks, validation_data=gen_val)
+        # Load Saved Checkpoint if Exits for the Same model.
+        if os.path.exists(os.path.join(model_path, f'{model.name}_checkpoint.h5')):
+            print(f"Loading {model.name} CHECKPOINT !!!")
+            model.load_weights(os.path.join(model_path, f'{model.name}_checkpoint.h5'))
+
+        # Start Training
+        model.fit(gen, epochs=100, callbacks=callbacks, validation_data=gen_val)
     model.save(f'{model_path}/Model_{model.name}.h5')
 
+# TRAINING
 if Testing:
+    # TODO: Check Sanity of this part
     # Load Last Saved Model
-    model.load_weights(f'{model_path}/Model_{model.name}.h5')
+    model.load_weights(os.path.join(model_path, f'{model.name}_checkpoint.h5'))
 
-    # Load an Image Example
-    num = np.random.randint(0, 3)
-    test_img, test_seg = gen_val[num]
-    test_pred = model.predict(test_img)
-    print(test_pred.shape)
-    
-    fig, ax = plt.subplots(1, 3, figsize=(20, 20))
-
-    ax[0].imshow(test_pred[0, :, :, :], 'gray')
-    ax[1].imshow(test_img[0, :, :, :], 'gray')
-    ax[2].imshow(test_seg[0, :, :, :], 'gray')
-    plt.show()
+    # Predict Using loaded Parameters
