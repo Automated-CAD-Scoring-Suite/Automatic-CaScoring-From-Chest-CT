@@ -36,7 +36,7 @@ class DisplayCallback(tf.keras.callbacks.Callback):
     def on_epoch_end(self, epoch, logs=None):
         pass
 
-    # NIFTY Callback on epoch end 
+    # NIFTY Callback on epoch end
     def _Nifty_EpochEnd(self, epoch):
         # Load Image
         num = random.choice(range(0, 3))
