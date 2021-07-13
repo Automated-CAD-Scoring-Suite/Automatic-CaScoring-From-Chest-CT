@@ -153,3 +153,5 @@ Models/CaScore/0187/img.nrrd
 Models/CaScore/0187/msk.nrrd
 
 *.nrrd
+
+Models/Segmentation/HarD-MSEG-best.pth
