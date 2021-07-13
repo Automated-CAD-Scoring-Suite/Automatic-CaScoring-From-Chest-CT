@@ -2,7 +2,6 @@ import os
 import sys
 from io import BytesIO
 
-import matplotlib.pyplot as plt
 import numpy as np
 from PIL import Image
 from flask import Flask, request, after_this_request, jsonify, send_file
