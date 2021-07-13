@@ -116,13 +116,13 @@ def SegmentSlices():
                 # elif "Cor" in SliceName:
                 #     CorSlices.append(res)
             CompressedArray = BytesIO()
-            np.savez_compressed(CompressedArray, a=AxSlices)
+            np.savez_compressed(CompressedArray, SegmentedSlices=AxSlices)
             CompressedArray.seek(0)
             # AxCoor = [int(i) for i in get_coords(AxSlices)]
             # SagCoor = [int(i) for i in get_coords(SagSlices)]
             # CorCoor = [int(i) for i in get_coords(CorSlices)]
             # Coor = [AxCoor, SagCoor, CorCoor]
-            return send_file(CompressedArray)
+            return send_file(CompressedArray, attachment_filename="SegmentedSlices")
     return "Good"
 
 
@@ -157,7 +157,7 @@ def SegmentVolume():
         # Close The Loaded npz File To Prevent Memory Leaks
         Data.close()
 
-        return send_file(CompressedArray)
+        return send_file(CompressedArray, attachment_filename="SegmentedVolume.npz")
 
     return "Good"
 

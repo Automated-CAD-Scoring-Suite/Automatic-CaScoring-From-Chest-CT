@@ -226,10 +226,16 @@
            </sizepolicy>
           </property>
           <property name="acceptDrops">
-           <bool>true</bool>
+           <bool>false</bool>
+          </property>
+          <property name="filters">
+           <set>ctkPathLineEdit::Files|ctkPathLineEdit::NoDot|ctkPathLineEdit::NoDotDot|ctkPathLineEdit::Readable</set>
           </property>
           <property name="options">
-           <set>ctkPathLineEdit::DontUseNativeDialog</set>
+           <set>ctkPathLineEdit::DontUseNativeDialog|ctkPathLineEdit::ReadOnly</set>
+          </property>
+          <property name="showHistoryButton">
+           <bool>true</bool>
           </property>
           <property name="sizeAdjustPolicy">
            <enum>ctkPathLineEdit::AdjustToMinimumContentsLength</enum>
@@ -252,8 +258,11 @@
           <property name="acceptDrops">
            <bool>true</bool>
           </property>
+          <property name="filters">
+           <set>ctkPathLineEdit::Files|ctkPathLineEdit::NoDot|ctkPathLineEdit::NoDotDot|ctkPathLineEdit::Readable</set>
+          </property>
           <property name="options">
-           <set>ctkPathLineEdit::DontUseNativeDialog</set>
+           <set>ctkPathLineEdit::DontUseNativeDialog|ctkPathLineEdit::ReadOnly</set>
           </property>
           <property name="sizeAdjustPolicy">
            <enum>ctkPathLineEdit::AdjustToMinimumContentsLength</enum>
@@ -293,8 +302,11 @@
           <property name="acceptDrops">
            <bool>true</bool>
           </property>
+          <property name="filters">
+           <set>ctkPathLineEdit::Files|ctkPathLineEdit::NoDot|ctkPathLineEdit::NoDotDot|ctkPathLineEdit::Readable</set>
+          </property>
           <property name="options">
-           <set>ctkPathLineEdit::DontUseNativeDialog</set>
+           <set>ctkPathLineEdit::DontUseNativeDialog|ctkPathLineEdit::ReadOnly</set>
           </property>
           <property name="sizeAdjustPolicy">
            <enum>ctkPathLineEdit::AdjustToMinimumContentsLength</enum>
@@ -323,8 +335,11 @@
           <property name="label">
            <string>Trace</string>
           </property>
+          <property name="filters">
+           <set>ctkPathLineEdit::Files|ctkPathLineEdit::NoDot|ctkPathLineEdit::NoDotDot|ctkPathLineEdit::Readable</set>
+          </property>
           <property name="options">
-           <set>ctkPathLineEdit::DontUseNativeDialog</set>
+           <set>ctkPathLineEdit::DontUseNativeDialog|ctkPathLineEdit::ReadOnly</set>
           </property>
           <property name="sizeAdjustPolicy">
            <enum>ctkPathLineEdit::AdjustToMinimumContentsLength</enum>
