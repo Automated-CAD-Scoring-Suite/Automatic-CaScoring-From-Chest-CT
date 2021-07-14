@@ -810,14 +810,17 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
         slicer.util.updateVolumeFromArray(LabelMapVolumeNode, Segmentation)
 
         # Create a SegmentationNode
-        segNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLSegmentationNode", f'{Name}-Segmentation')
+        SegNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLSegmentationNode", f'{Name}-Segmentation')
 
         # Load the LabelMapVolume into the SegmentationNode
-        slicer.modules.segmentations.logic().ImportLabelmapToSegmentationNode(LabelMapVolumeNode, segNode)
+        slicer.modules.segmentations.logic().ImportLabelmapToSegmentationNode(LabelMapVolumeNode, SegNode)
 
-        # Update Display
-        # LabelmapVolumeNode.CreateDefaultDisplayNodes()
-        # LabelmapVolumeNode.CreateDefaultStorageNode()
+        # Create Closed Surface Representation
+        SegNode.CreateClosedSurfaceRepresentation()
+
+        # Delete The LabelMapVolume
+        slicer.mrmlScene.RemoveNode(LabelMapVolumeNode)
+
 
     def GetCoordinates(self, Segmentation, Partial, Local):
         Coordinates = []

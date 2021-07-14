@@ -76,13 +76,26 @@
         </property>
        </widget>
       </item>
-      <item row="6" column="0" colspan="2">
-       <widget class="QCheckBox" name="CalSegNode">
+      <item row="5" column="0" colspan="2">
+       <widget class="QCheckBox" name="HeartSegNode">
         <property name="toolTip">
-         <string>If Checked, Creates A Segmentation Node Showing Found Calcifications In Addition To Volume Computation</string>
+         <string>If Checked, Creates A Segmentation Node Marking The Heart, Doesn't Work With Partial Segmentation</string>
         </property>
         <property name="text">
-         <string>Create Calcifications Segmentation Node</string>
+         <string>Create Heart Segmentation Node</string>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="0">
+       <widget class="QCheckBox" name="PartialSegmentation">
+        <property name="toolTip">
+         <string>If Checked,Only Takes Samples To Segment For Cropping, Requires Enabling Cropping</string>
+        </property>
+        <property name="text">
+         <string>Partial Segmentation</string>
+        </property>
+        <property name="checked">
+         <bool>true</bool>
         </property>
        </widget>
       </item>
@@ -131,26 +144,23 @@
         </item>
        </layout>
       </item>
-      <item row="5" column="0" colspan="2">
-       <widget class="QCheckBox" name="HeartSegNode">
+      <item row="6" column="0" colspan="2">
+       <widget class="QCheckBox" name="HeartSeg3D">
         <property name="toolTip">
-         <string>If Checked, Creates A Segmentation Node Marking The Heart, Doesn't Work With Partial Segmentation</string>
+         <string>Creates a 3D Representation of The Heart Using it's Segmentation</string>
         </property>
         <property name="text">
-         <string>Create Heart Segmentation Node</string>
+         <string>Visualize The Heart</string>
         </property>
        </widget>
       </item>
-      <item row="4" column="0">
-       <widget class="QCheckBox" name="PartialSegmentation">
+      <item row="7" column="0" colspan="2">
+       <widget class="QCheckBox" name="CalSegNode">
         <property name="toolTip">
-         <string>If Checked,Only Takes Samples To Segment For Cropping, Requires Enabling Cropping</string>
+         <string>If Checked, Creates A Segmentation Node Showing Found Calcifications In Addition To Volume Computation</string>
         </property>
         <property name="text">
-         <string>Partial Segmentation</string>
-        </property>
-        <property name="checked">
-         <bool>true</bool>
+         <string>Create Calcifications Segmentation Node</string>
         </property>
        </widget>
       </item>
@@ -171,6 +181,16 @@
        <widget class="Line" name="line">
         <property name="orientation">
          <enum>Qt::Horizontal</enum>
+        </property>
+       </widget>
+      </item>
+      <item row="8" column="0" colspan="2">
+       <widget class="QCheckBox" name="CalSeg3D">
+        <property name="toolTip">
+         <string>Creates a 3D Representation of The Calcifications Using it's Segmentation</string>
+        </property>
+        <property name="text">
+         <string>Visualize The Calcifications</string>
         </property>
        </widget>
       </item>
@@ -400,6 +420,12 @@
         </property>
         <property name="text">
          <string>Anonymize Data (If Applicable)</string>
+        </property>
+        <property name="checkable">
+         <bool>false</bool>
+        </property>
+        <property name="checked">
+         <bool>false</bool>
         </property>
        </widget>
       </item>
