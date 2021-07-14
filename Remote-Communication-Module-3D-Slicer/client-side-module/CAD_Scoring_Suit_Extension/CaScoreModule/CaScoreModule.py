@@ -176,7 +176,9 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.CroppingEnabled.toggled.connect(self.updateParameterNodeFromGUI)
         self.ui.PartialSegmentation.toggled.connect(self.updateParameterNodeFromGUI)
         self.ui.HeartSegNode.toggled.connect(self.updateParameterNodeFromGUI)
+        self.ui.HeartSeg3D.toggled.connect(self.updateParameterNodeFromGUI)
         self.ui.CalSegNode.toggled.connect(self.updateParameterNodeFromGUI)
+        self.ui.CalSeg3D.toggled.connect(self.updateParameterNodeFromGUI)
         self.ui.SegAndCrop.toggled.connect(self.updateParameterNodeFromGUI)
 
         # Buttons
