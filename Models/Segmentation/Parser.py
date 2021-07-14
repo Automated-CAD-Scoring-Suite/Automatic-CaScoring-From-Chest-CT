@@ -11,18 +11,16 @@ import os
 
 training = 'Data/Training/'
 validation = 'Data/Validation/'
-train_target_image = 'Data2/Training/image'
-train_target_mask = 'Data2/Training/mask'
-valid_target_image = 'Data2/Validation/image'
-valid_target_mask = 'Data2/Validation/mask'
-target_npy_train = 'Data3/train_npz'
-target_npy_test = 'Data3/test_vol_h5'
+train_target_image = 'Data3/Training/image'
+train_target_mask = 'Data3/Training/mask'
+valid_target_image = 'Data3/Validation/image'
+valid_target_mask = 'Data3/Validation/mask'
+
 target = None
 target_image = None
 target_mask = None
 
-SAVE_NPY = False
-PARSE_Train = True
+PARSE_Train = False
 
 if PARSE_Train:
     target_image = train_target_image
@@ -66,7 +64,7 @@ if __name__ == '__main__':
     FILES = [file for file in sorted(os.listdir(target)) if file.startswith("ct_train")]
 
     for FILE in FILES:
-        case = FILE[-2:]
+        case = FILE[-4:]
         # Get each case File Path
         FILE_PATH = os.path.join(target, FILE)
 
@@ -91,19 +89,11 @@ if __name__ == '__main__':
 
         IMAGING_DATA = range_scale(IMAGING_DATA)
 
-        # IMAGING_DATA = zoom3D(IMAGING_DATA, 2)
-        # SEGMENT_DATA = zoom3D(SEGMENT_DATA, 2)
+        IMAGING_DATA = zoom3D(IMAGING_DATA, 2)
+        SEGMENT_DATA = zoom3D(SEGMENT_DATA, 2)
 
         SEGMENT_DATA[SEGMENT_DATA <= 0.5] = 0.0
         SEGMENT_DATA[SEGMENT_DATA > 0.5] = 1.0
-
-        # Save Vol for TransUnet
-        if SAVE_NPY:
-            if not os.path.exists(target_npy_test):
-                os.makedirs(target_npy_test)
-            np.savez(os.path.join(target_npy_test, f"case{case}.npy.h5"),
-                     image=IMAGING_DATA,
-                     label=SEGMENT_DATA)
 
         # Create the Directory
         if not os.path.exists(target_image):
@@ -119,15 +109,24 @@ if __name__ == '__main__':
             z_seg = SEGMENT_DATA[:, :, s]
 
             # Saving as PNG
-            cv2.imwrite(os.path.join(target_image, f"case_{case}_slice_{s}.png"), z_img * 255)
-            cv2.imwrite(os.path.join(target_mask, f"case_{case}_slice_{s}.png"), z_seg * 255)
+            cv2.imwrite(os.path.join(target_image, f"{case}_{s:04}_0.png"), z_img * 255)
+            cv2.imwrite(os.path.join(target_mask, f"{case}_{s:04}_0.png"), z_seg * 255)
 
-            # Saving as NPZ
-            if SAVE_NPY:
-                if not os.path.exists(target_npy_train):
-                    os.makedirs(target_npy_train)
-                np.savez(os.path.join(target_npy_train, f"case{case}_slice{s}.npz"),
-                         image=z_img,
-                         label=z_seg)
+        for s in range(IMAGING_DATA.shape[1]):
+            # Slicing the Required Axis
+            z_img = IMAGING_DATA[:, s, :]
+            z_seg = SEGMENT_DATA[:, s, :]
+
+            # Saving as PNG
+            cv2.imwrite(os.path.join(target_image, f"{case}_{s:04}_1.png"), z_img * 255)
+            cv2.imwrite(os.path.join(target_mask, f"{case}_{s:04}_1.png"), z_seg * 255)
+
+        for s in range(IMAGING_DATA.shape[0]):
+            # Slicing the Required Axis
+            z_img = IMAGING_DATA[s, :, :]
+            z_seg = SEGMENT_DATA[s, :, :]
+
+            # Saving as PNG
+            cv2.imwrite(os.path.join(target_image, f"{case}_{s:04}_2.png"), z_img * 255)
+            cv2.imwrite(os.path.join(target_mask, f"{case}_{s:04}_2.png"), z_seg * 255)
         print("Saved !!", flush=False)
-
