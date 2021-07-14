@@ -1,35 +1,9 @@
 #
 # U-NET TF Implementation
 #
-
-from tensorflow.keras.layers import Conv2D, Conv3D, Conv2DTranspose, Conv3DTranspose, MaxPool2D, MaxPool3D,\
-    AveragePooling2D, AveragePooling3D, Concatenate, Input, BatchNormalization, Dropout, UpSampling2D, UpSampling3D
 from tensorflow.keras.models import Model
-from tensorflow.keras.regularizers import l2
-from enum import Enum
-
-
-# Modes Used by the User
-class Transpose(Enum):
-    transpose2D = Conv2DTranspose
-    transpose3D = Conv3DTranspose
-
-
-class UpSample(Enum):
-    upSample2D = UpSampling2D
-    upSample3D = UpSampling3D
-
-
-class Conv(Enum):
-    conv2D = Conv2D
-    conv3D = Conv3D
-
-
-class Pooling(Enum):
-    max2D = MaxPool2D
-    max3D = MaxPool3D
-    average2D = AveragePooling2D
-    average3D = AveragePooling3D
+from tensorflow.keras.layers import Concatenate, Input, BatchNormalization, Dropout
+from .modes import Conv, Transpose, Pooling, UpSample
 
 
 class UNet:
@@ -47,7 +21,7 @@ class UNet:
         :param transpose:
         :param pool:
         """
-        print("Initializing UNET")
+        print("Initializing Unet")
         self.transpose = False
         self.up_sample = False
 
@@ -79,7 +53,7 @@ class UNet:
         :return: tf Model() instance
         """
         # Parameters that are constant for all Layers
-        parameters = dict(kernel_size=kernel_size, padding='same', activation=activation, kernel_regularizer=l2())
+        parameters = dict(kernel_size=kernel_size, padding='same', activation=activation)
 
         # Model Input
         inputs = Input(input_shape)
@@ -90,7 +64,11 @@ class UNet:
 
         for level in range(levels):
             for conv in range(convolutions):
-                x = self.contract(initial_features * (2 ** level) * (conv + 1), **parameters)(x)
+                if level < levels -1:
+                    x = self.contract(initial_features * (2 ** level) * (conv + 1), **parameters)(x)
+                else:
+                    # Preventing escalation of Layer Filter
+                    x = self.contract(initial_features * (2 ** (level - 1)) * (conv + 1), **parameters)(x)
 
             if batch_norm:
                 x = BatchNormalization()(x)
@@ -112,11 +90,10 @@ class UNet:
             x = Concatenate()([x, connects[level]])
 
             for conv in range(convolutions):
-                x = self.contract(initial_features * 2 ** (level + 1), **parameters)(x)
-            # if batch_norm:
-            #     x = BatchNormalization()(x)
-            # if drop_out is not None:
-            #     x = Dropout(drop_out)(x)
+                if level != 0:
+                    x = self.contract(initial_features * 2 ** level, **parameters)(x)
+                else:
+                    x = self.contract(initial_features * 2 ** (level+1), **parameters)(x)
 
         # Model Output
         x = self.contract(out_channels, kernel_size=1, activation='sigmoid', padding='same')(x)
@@ -126,9 +103,10 @@ class UNet:
 # TESTING
 if __name__ == '__main__':
     from tensorflow.keras.utils import plot_model
-    unet3D = UNet("conv3D", up_sample="upSample3D", transpose=None, pool="max3D")
-    model = unet3D(5, 2, (112, 112, 112, 1), (3, 3, 3))
-    # unet = UNet(transpose='upSample3D')
-    # model = unet(4, 2, (128, 128, 1), (3, 3))
-    print(model.summary())
-    plot_model(model, show_shapes=True)
+    from tensorflow.keras.layers import Conv3D, MaxPooling3D, UpSampling3D, concatenate, Activation
+    uNet3D = UNet("conv3D", up_sample="upSample3D", transpose=None, pool="max3D")
+    model = uNet3D(5, 2, (112, 112, 112, 1), (3, 3, 3))
+    # uNet = UNet(transpose='upSample3D')
+    # model = uNet(4, 2, (128, 128, 1), (3, 3))
+    # print(model.summary())
+    # plot_model(model, show_shapes=True, to_file='model3.png')

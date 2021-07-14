@@ -4,7 +4,7 @@
 import os
 
 import tensorflow as tf
-from unet import UNet
+from Unet.unet import UNet
 import callbacks as cb
 from functions import dice_coef_loss, dice_coef
 from Generator import NiftyGen, NiftyAugmentor
