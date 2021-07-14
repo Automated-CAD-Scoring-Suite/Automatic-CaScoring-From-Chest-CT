@@ -190,7 +190,9 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.CroppingEnabled.toggled.connect(self.AllowableOperations)
         self.ui.PartialSegmentation.toggled.connect(self.AllowableOperations)
         self.ui.HeartSegNode.toggled.connect(self.AllowableOperations)
+        self.ui.HeartSeg3D.toggled.connect(self.AllowableOperations)
         self.ui.CalSegNode.toggled.connect(self.AllowableOperations)
+        self.ui.CalSeg3D.toggled.connect(self.AllowableOperations)
         self.ui.SegAndCrop.toggled.connect(self.AllowableOperations)
 
         # Make sure parameter node is initialized (needed for module reload)
@@ -295,7 +297,9 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.ui.CroppingEnabled.checked = strtobool(self._parameterNode.GetParameter("CroppingEnabled"))
             self.ui.PartialSegmentation.checked = strtobool(self._parameterNode.GetParameter("Partial"))
             self.ui.HeartSegNode.checked = strtobool(self._parameterNode.GetParameter("HeartSegNode"))
+            self.ui.HeartSeg3D.checked = strtobool(self._parameterNode.GetParameter("HeartSeg3D"))
             self.ui.CalSegNode.checked = strtobool(self._parameterNode.GetParameter("CalSegNode"))
+            self.ui.CalSeg3D.checked = strtobool(self._parameterNode.GetParameter("CalSeg3D"))
             self.ui.SegAndCrop.checked = strtobool(self._parameterNode.GetParameter("SegAndCrop"))
 
         # Update buttons states and tooltips
@@ -332,7 +336,9 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self._parameterNode.SetParameter("Local", "true" if self.ui.LocalProcessingRadio.checked else "false")
         self._parameterNode.SetParameter("Partial", "true" if self.ui.PartialSegmentation.checked else "false")
         self._parameterNode.SetParameter("HeartSegNode", "true" if self.ui.HeartSegNode.checked else "false")
+        self._parameterNode.SetParameter("HeartSeg3D", "true" if self.ui.HeartSeg3D.checked else "false")
         self._parameterNode.SetParameter("CalSegNode", "true" if self.ui.CalSegNode.checked else "false")
+        self._parameterNode.SetParameter("CalSeg3D", "true" if self.ui.CalSeg3D.checked else "false")
         self._parameterNode.SetParameter("CroppingEnabled", "true" if self.ui.CroppingEnabled.checked else "false")
         self._parameterNode.SetParameter("SegAndCrop", "true" if self.ui.SegAndCrop.checked else "false")
         self._parameterNode.SetParameter("Anonymize", "true" if self.ui.Anonymize.checked else "false")
@@ -374,9 +380,12 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.ui.PartialSegmentation.setEnabled(False)
             self._parameterNode.SetParameter("SegAndCrop", "false")
             self.ui.SegAndCrop.setEnabled(False)
+            self.ui.HeartSeg3D.setEnabled(True)
         else:
             self.ui.PartialSegmentation.setEnabled(True)
             self.ui.SegAndCrop.setEnabled(True)
+            self.ui.HeartSeg3D.setEnabled(False)
+            self._parameterNode.SetParameter("HeartSeg3D", "false")
 
         # Disable Partial Segmentation Option If Cropping is Disabled
         if strtobool(self._parameterNode.GetParameter("CroppingEnabled")) and \
@@ -410,7 +419,9 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # Get Parameters
         Partial = bool(strtobool(self._parameterNode.GetParameter("Partial")))
         HeartSegNode = bool(strtobool(self._parameterNode.GetParameter("HeartSegNode")))
+        HeartSeg3D = bool(strtobool(self._parameterNode.GetParameter("HeartSeg3D")))
         CalSegNode = bool(strtobool(self._parameterNode.GetParameter("CalSegNode")))
+        CalSeg3D = bool(strtobool(self._parameterNode.GetParameter("CalSeg3D")))
         CroppingEnabled = bool(strtobool(self._parameterNode.GetParameter("CroppingEnabled")))
         SegAndCrop = bool(strtobool(self._parameterNode.GetParameter("SegAndCrop")))
         HeartModelPath = self._parameterNode.GetParameter("HeartModelPath")
