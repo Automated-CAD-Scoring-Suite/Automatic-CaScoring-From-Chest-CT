@@ -472,7 +472,7 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 logging.info('Segmentation completed in {0:.2f} seconds'.format(SegmentationTime))
 
             if not Partial and HeartSegNode:
-                self.logic.CreateSegmentationNode(Segmentation, "Heart", VolumeIJKToRAS)
+                self.logic.CreateSegmentationNode(Segmentation, "Heart", VolumeIJKToRAS, HeartSeg3D)
 
             if CroppingEnabled and not SegAndCrop:
                 Coordinates = self.logic.GetCoordinates(Segmentation, Partial)
