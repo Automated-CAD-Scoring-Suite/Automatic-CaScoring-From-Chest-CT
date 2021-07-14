@@ -422,6 +422,10 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # Get Input Volume
         InputVolumeNode = self.ui.inputSelector.currentNode()
 
+        # Get IJKToRAS Matrix
+        VolumeIJKToRAS = vtk.vtkMatrix4x4()
+        InputVolumeNode.GetIJKToRASMatrix(VolumeIJKToRAS)
+
         if not self.LocalProcessing:
             try:
                 request = requests.get(ServerURL)
@@ -455,10 +459,10 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 logging.info('Segmentation completed in {0:.2f} seconds'.format(SegmentationTime))
 
             if not Partial and HeartSegNode:
-                self.logic.CreateSegmentationNode(Segmentation, "Heart")
+                self.logic.CreateSegmentationNode(Segmentation, "Heart", VolumeIJKToRAS)
 
             if CroppingEnabled and not SegAndCrop:
-                Coordinates = self.logic.GetCoordinates(Segmentation, Partial, self.LocalProcessing)
+                Coordinates = self.logic.GetCoordinates(Segmentation, Partial)
 
             if CroppingEnabled or SegAndCrop:
                 x1 = (Coordinates[0] - 20) if (Coordinates[0] - 20 >= 0) else 0
@@ -801,10 +805,14 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
         else:
             logging.info('PyTorch Found')
 
-    def CreateSegmentationNode(self, Segmentation, Name="Heart"):
+    def CreateSegmentationNode(self, Segmentation, Name="Heart", VolumeIJKToRAS="", HeartSegVis=False):
 
         # Create a new LabelMapVolume
         LabelMapVolumeNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLLabelMapVolumeNode', f'{Name}-Label')
+
+        # Set IJKToRAS Matrix To That of The Original Volume
+        if VolumeIJKToRAS:
+            LabelMapVolumeNode.SetIJKToRASMatrix(VolumeIJKToRAS)
 
         # Update the LabelMapVolume from the given Segmentation array
         slicer.util.updateVolumeFromArray(LabelMapVolumeNode, Segmentation)
@@ -815,15 +823,14 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
         # Load the LabelMapVolume into the SegmentationNode
         slicer.modules.segmentations.logic().ImportLabelmapToSegmentationNode(LabelMapVolumeNode, SegNode)
 
-        # Create Closed Surface Representation
-        SegNode.CreateClosedSurfaceRepresentation()
+        if HeartSegVis:
+            # Create Closed Surface Representation
+            SegNode.CreateClosedSurfaceRepresentation()
 
         # Delete The LabelMapVolume
         slicer.mrmlScene.RemoveNode(LabelMapVolumeNode)
 
-
-    def GetCoordinates(self, Segmentation, Partial, Local):
-        Coordinates = []
+    def GetCoordinates(self, Segmentation, Partial):
         if Partial:
             Coordinates = get_coords(Segmentation)
         else:
