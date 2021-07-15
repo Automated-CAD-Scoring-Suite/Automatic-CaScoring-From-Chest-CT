@@ -2,6 +2,9 @@
 <ui version="4.0">
  <class>CaScoreModule</class>
  <widget class="qMRMLWidget" name="CaScoreModule">
+  <property name="enabled">
+   <bool>true</bool>
+  </property>
   <property name="geometry">
    <rect>
     <x>0</x>
@@ -146,9 +149,6 @@
       </item>
       <item row="6" column="0" colspan="2">
        <widget class="QCheckBox" name="HeartSeg3D">
-        <property name="enabled">
-         <bool>false</bool>
-        </property>
         <property name="toolTip">
          <string>Creates a 3D Representation of The Heart Using it's Segmentation</string>
         </property>
@@ -189,9 +189,6 @@
       </item>
       <item row="8" column="0" colspan="2">
        <widget class="QCheckBox" name="CalSeg3D">
-        <property name="enabled">
-         <bool>false</bool>
-        </property>
         <property name="toolTip">
          <string>Creates a 3D Representation of The Calcifications Using it's Segmentation</string>
         </property>
@@ -404,6 +401,9 @@
       </item>
       <item row="2" column="0" colspan="2">
        <widget class="QCheckBox" name="SegAndCrop">
+        <property name="enabled">
+         <bool>false</bool>
+        </property>
         <property name="toolTip">
          <string>If Checked, Doesn't Request Segmented Data From The Server, Reduces Time But Forces Partial Segmentation &amp; Disables Creation of Segmentation Node</string>
         </property>
@@ -421,6 +421,9 @@
       </item>
       <item row="3" column="0" colspan="2">
        <widget class="QCheckBox" name="Anonymize">
+        <property name="enabled">
+         <bool>false</bool>
+        </property>
         <property name="toolTip">
          <string>If Checked, Removes Personal Data If Found Before Sending To The Server</string>
         </property>
@@ -428,10 +431,10 @@
          <string>Anonymize Data (If Applicable)</string>
         </property>
         <property name="checkable">
-         <bool>false</bool>
+         <bool>true</bool>
         </property>
         <property name="checked">
-         <bool>false</bool>
+         <bool>true</bool>
         </property>
        </widget>
       </item>
