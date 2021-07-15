@@ -121,26 +121,29 @@ def registerSampleData():
 #
 
 class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
-    """Uses ScriptedLoadableModuleWidget base class, available at:
-  https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
-  """
+    """
+    Uses ScriptedLoadableModuleWidget base class, available at:
+    https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
+    """
 
     def __init__(self, parent=None):
         """
-    Called when the user opens the module the first time and the widget is initialized.
-    """
+        Called when the user opens the module the first time and the widget is initialized.
+        """
+
         ScriptedLoadableModuleWidget.__init__(self, parent)
-        VTKObservationMixin.__init__(self)  # needed for parameter node observation
-        self.logic = None
-        self._parameterNode = None
+        VTKObservationMixin.__init__(self)                  # needed for parameter node observation
+
+        self.logic = None               # Used to store Logic Class
+        self._parameterNode = None      # Used to store the parameter node object
         self._updatingGUIFromParameterNode = False
 
-        self.LocalProcessing = True
+        self.LocalProcessing = True     # Flag to check if the Processing is Offline (Local) or Online
 
     def setup(self):
         """
-    Called when the user opens the module the first time and the widget is initialized.
-    """
+        Called when the user opens the module the first time and the widget is initialized.
+        """
         ScriptedLoadableModuleWidget.setup(self)
 
         # Load widget from .ui file (created by Qt Designer).
@@ -176,7 +179,9 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.CroppingEnabled.toggled.connect(self.updateParameterNodeFromGUI)
         self.ui.PartialSegmentation.toggled.connect(self.updateParameterNodeFromGUI)
         self.ui.HeartSegNode.toggled.connect(self.updateParameterNodeFromGUI)
+        self.ui.HeartSeg3D.toggled.connect(self.updateParameterNodeFromGUI)
         self.ui.CalSegNode.toggled.connect(self.updateParameterNodeFromGUI)
+        self.ui.CalSeg3D.toggled.connect(self.updateParameterNodeFromGUI)
         self.ui.SegAndCrop.toggled.connect(self.updateParameterNodeFromGUI)
 
         # Buttons
@@ -190,7 +195,9 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.CroppingEnabled.toggled.connect(self.AllowableOperations)
         self.ui.PartialSegmentation.toggled.connect(self.AllowableOperations)
         self.ui.HeartSegNode.toggled.connect(self.AllowableOperations)
+        self.ui.HeartSeg3D.toggled.connect(self.AllowableOperations)
         self.ui.CalSegNode.toggled.connect(self.AllowableOperations)
+        self.ui.CalSeg3D.toggled.connect(self.AllowableOperations)
         self.ui.SegAndCrop.toggled.connect(self.AllowableOperations)
 
         # Make sure parameter node is initialized (needed for module reload)
@@ -198,43 +205,44 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     def cleanup(self):
         """
-    Called when the application closes and the module widget is destroyed.
-    """
+        Called when the application closes and the module widget is destroyed.
+        """
         self.removeObservers()
 
     def enter(self):
         """
-    Called each time the user opens this module.
-    """
+        Called each time the user opens this module.
+        """
         # Make sure parameter node exists and observed
         self.initializeParameterNode()
 
     def exit(self):
         """
-    Called each time the user opens a different module.
-    """
-        # Do not react to parameter node changes (GUI wlil be updated when the user enters into the module)
+        Called each time the user opens a different module.
+        """
+        # Do not react to parameter node changes (GUI will be updated when the user enters into the module)
         self.removeObserver(self._parameterNode, vtk.vtkCommand.ModifiedEvent, self.updateGUIFromParameterNode)
 
     def onSceneStartClose(self, caller, event):
         """
-    Called just before the scene is closed.
-    """
+        Called just before the scene is closed.
+        """
         # Parameter node will be reset, do not use it anymore
         self.setParameterNode(None)
 
     def onSceneEndClose(self, caller, event):
         """
-    Called just after the scene is closed.
-    """
+        Called just after the scene is closed.
+        """
         # If this module is shown while the scene is closed then recreate a new parameter node immediately
         if self.parent.isEntered:
             self.initializeParameterNode()
 
     def initializeParameterNode(self):
         """
-    Ensure parameter node exists and observed.
-    """
+        Ensure parameter node exists and observed.
+        """
+
         # Parameter node stores all user choices in parameter values, node selections, etc.
         # so that when the scene is saved and reloaded, these settings are restored.
 
@@ -248,9 +256,9 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     def setParameterNode(self, inputParameterNode):
         """
-    Set and observe parameter node.
-    Observation is needed because when the parameter node is changed then the GUI must be updated immediately.
-    """
+        Set and observe parameter node.
+        Observation is needed because when the parameter node is changed then the GUI must be updated immediately.
+        """
 
         if inputParameterNode:
             self.logic.setDefaultParameters(inputParameterNode)
@@ -269,9 +277,9 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     def updateGUIFromParameterNode(self, caller=None, event=None):
         """
-    This method is called whenever parameter node is changed.
-    The module GUI is updated to show the current state of the parameter node.
-    """
+        This method is called whenever parameter node is changed.
+        The module GUI is updated to show the current state of the parameter node.
+        """
 
         if self._parameterNode is None or self._updatingGUIFromParameterNode:
             return
@@ -295,7 +303,9 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.ui.CroppingEnabled.checked = strtobool(self._parameterNode.GetParameter("CroppingEnabled"))
             self.ui.PartialSegmentation.checked = strtobool(self._parameterNode.GetParameter("Partial"))
             self.ui.HeartSegNode.checked = strtobool(self._parameterNode.GetParameter("HeartSegNode"))
+            self.ui.HeartSeg3D.checked = strtobool(self._parameterNode.GetParameter("HeartSeg3D"))
             self.ui.CalSegNode.checked = strtobool(self._parameterNode.GetParameter("CalSegNode"))
+            self.ui.CalSeg3D.checked = strtobool(self._parameterNode.GetParameter("CalSeg3D"))
             self.ui.SegAndCrop.checked = strtobool(self._parameterNode.GetParameter("SegAndCrop"))
 
         # Update buttons states and tooltips
@@ -311,9 +321,9 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     def updateParameterNodeFromGUI(self, caller=None, event=None):
         """
-    This method is called when the user makes any change in the GUI.
-    The changes are saved into the parameter node (so that they are restored when the scene is saved and loaded).
-    """
+        This method is called when the user makes any change in the GUI.
+        The changes are saved into the parameter node (so that they are restored when the scene is saved and loaded).
+        """
 
         if self._parameterNode is None or self._updatingGUIFromParameterNode:
             return
@@ -321,7 +331,7 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         wasModified = self._parameterNode.StartModify()  # Modify all properties in a single batch
 
         self._parameterNode.SetNodeReferenceID("InputVolume", self.ui.inputSelector.currentNodeID)
-        # self._parameterNode.SetNodeReferenceID("OutputVolume", self.ui.outputSelector.currentNodeID)s
+        # self._parameterNode.SetNodeReferenceID("OutputVolume", self.ui.outputSelector.currentNodeID)
         # self._parameterNode.SetParameter("Threshold", str(self.ui.imageThresholdSliderWidget.value))
         # self._parameterNode.SetParameter("Invert", "true" if self.ui.invertOutputCheckBox.checked else "false")
         # self._parameterNode.SetNodeReferenceID("OutputVolumeInverse", self.ui.invertedOutputSelector.currentNodeID)
@@ -332,7 +342,9 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self._parameterNode.SetParameter("Local", "true" if self.ui.LocalProcessingRadio.checked else "false")
         self._parameterNode.SetParameter("Partial", "true" if self.ui.PartialSegmentation.checked else "false")
         self._parameterNode.SetParameter("HeartSegNode", "true" if self.ui.HeartSegNode.checked else "false")
+        self._parameterNode.SetParameter("HeartSeg3D", "true" if self.ui.HeartSeg3D.checked else "false")
         self._parameterNode.SetParameter("CalSegNode", "true" if self.ui.CalSegNode.checked else "false")
+        self._parameterNode.SetParameter("CalSeg3D", "true" if self.ui.CalSeg3D.checked else "false")
         self._parameterNode.SetParameter("CroppingEnabled", "true" if self.ui.CroppingEnabled.checked else "false")
         self._parameterNode.SetParameter("SegAndCrop", "true" if self.ui.SegAndCrop.checked else "false")
         self._parameterNode.SetParameter("Anonymize", "true" if self.ui.Anonymize.checked else "false")
@@ -364,6 +376,8 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.ui.OnlineSettings.setEnabled(True)
             self.ui.OnlineSettings.collapsed = False
 
+        self.AllowableOperations()
+
     def AllowableOperations(self):
 
         # Disable Partial Segmentation Option If Segmentation Node Creation Option is Enabled,
@@ -374,14 +388,24 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.ui.PartialSegmentation.setEnabled(False)
             self._parameterNode.SetParameter("SegAndCrop", "false")
             self.ui.SegAndCrop.setEnabled(False)
+            self.ui.HeartSeg3D.setEnabled(True)
         else:
             self.ui.PartialSegmentation.setEnabled(True)
             self.ui.SegAndCrop.setEnabled(True)
+            self.ui.HeartSeg3D.setEnabled(False)
+            self._parameterNode.SetParameter("HeartSeg3D", "false")
 
         # Disable Partial Segmentation Option If Cropping is Disabled
         if strtobool(self._parameterNode.GetParameter("CroppingEnabled")) and \
                 not strtobool(self._parameterNode.GetParameter("HeartSegNode")):
+
             self.ui.PartialSegmentation.setEnabled(True)
+
+            # Disable Don't Request Segmentation if Not Using Partial Segmentation
+            if strtobool(self._parameterNode.GetParameter("Partial")):
+                self.ui.SegAndCrop.setEnabled(True)
+            else:
+                self.ui.SegAndCrop.setEnabled(False)
         else:
             self._parameterNode.SetParameter("Partial", "false")
             self.ui.PartialSegmentation.setEnabled(False)
@@ -390,8 +414,8 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     def onApplyButton(self):
         """
-    Run processing when user clicks "Apply" button.
-    """
+        Run processing when user clicks "Apply" button.
+        """
         startTime = time.time()
         logging.info('Processing started')
 
@@ -410,7 +434,9 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # Get Parameters
         Partial = bool(strtobool(self._parameterNode.GetParameter("Partial")))
         HeartSegNode = bool(strtobool(self._parameterNode.GetParameter("HeartSegNode")))
+        HeartSeg3D = bool(strtobool(self._parameterNode.GetParameter("HeartSeg3D")))
         CalSegNode = bool(strtobool(self._parameterNode.GetParameter("CalSegNode")))
+        CalSeg3D = bool(strtobool(self._parameterNode.GetParameter("CalSeg3D")))
         CroppingEnabled = bool(strtobool(self._parameterNode.GetParameter("CroppingEnabled")))
         SegAndCrop = bool(strtobool(self._parameterNode.GetParameter("SegAndCrop")))
         HeartModelPath = self._parameterNode.GetParameter("HeartModelPath")
@@ -421,6 +447,12 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         # Get Input Volume
         InputVolumeNode = self.ui.inputSelector.currentNode()
+
+        # Get IJKToRAS Matrix
+        # Required to get some data from the volume (spacing, margin, etc.)
+        # This data is used after that to show the segmentation node after finished the processing
+        VolumeIJKToRAS = vtk.vtkMatrix4x4()
+        InputVolumeNode.GetIJKToRASMatrix(VolumeIJKToRAS)
 
         if not self.LocalProcessing:
             try:
@@ -447,19 +479,20 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 Coordinates = self.logic.SegAndCrop(VolumeArray, self.LocalProcessing,
                                                     ServerURL, HeartModelPath, HeartTracePath)
 
-            elif CalSegNode or CroppingEnabled:
+            elif HeartSegNode or CroppingEnabled:
                 Segmentation, SegmentationTime = self.logic.Segment(VolumeArray, self.LocalProcessing,
                                                                     ServerURL, Partial, True,
                                                                     HeartModelPath, HeartTracePath)
 
                 logging.info('Segmentation completed in {0:.2f} seconds'.format(SegmentationTime))
 
-            if not Partial and CalSegNode:
-                self.logic.CreateSegmentationNode(Segmentation, "Heart")
+            if not Partial and HeartSegNode:
+                self.logic.CreateSegmentationNode(Segmentation, "Heart", VolumeIJKToRAS, HeartSeg3D)
 
             if CroppingEnabled and not SegAndCrop:
-                Coordinates = self.logic.GetCoordinates(Segmentation, Partial, self.LocalProcessing)
+                Coordinates = self.logic.GetCoordinates(Segmentation, Partial)
 
+            # Add margin to the segmentation output
             if CroppingEnabled or SegAndCrop:
                 x1 = (Coordinates[0] - 20) if (Coordinates[0] - 20 >= 0) else 0
                 x2 = (Coordinates[1] + 20) if (Coordinates[1] + 20 >= 0) else VolumeArray.shape[1]
@@ -470,6 +503,8 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 NewVolume = VolumeArray[:, x1:x2, y1:y2]
                 slicer.util.updateVolumeFromArray(InputVolumeNode, NewVolume)
                 logging.info(f"Cropped!")
+
+                # Center Volume in the Scene an update the view
                 CompositeNode = slicer.app.layoutManager().sliceWidget("Red").sliceLogic().GetSliceCompositeNode()
                 VolumeNodeID = CompositeNode.GetBackgroundVolumeID()
                 CurrentNode = slicer.mrmlScene.GetNodeByID(VolumeNodeID)
@@ -489,14 +524,16 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 #
 
 class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
-    """This class should implement all the actual
-  computation done by your module.  The interface
-  should be such that other python code can import
-  this class and make use of the functionality without
-  requiring an instance of the Widget.
-  Uses ScriptedLoadableModuleLogic base class, available at:
-  https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
-  """
+    """
+    This class should implement all the actual
+    computation done by your module.  The interface
+    should be such that other python code can import
+    this class and make use of the functionality without
+    requiring an instance of the Widget.
+    Uses ScriptedLoadableModuleLogic base class, available at:
+    https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
+    """
+
     finished = qt.Signal()
     progress = qt.Signal(int)
 
@@ -525,14 +562,14 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
 
     def processOld(self, inputVolume, outputVolume, imageThreshold, invert=False, showResult=True):
         """
-    Run the processing algorithm.
-    Can be used without GUI widget.
-    :param inputVolume: volume to be thresholded
-    :param outputVolume: thresholding result
-    :param imageThreshold: values above/below this threshold will be set to 0
-    :param invert: if True then values above the threshold will be set to 0, otherwise values below are set to 0
-    :param showResult: show output volume in slice viewers
-    """
+        Run the processing algorithm.
+        Can be used without GUI widget.
+        :param inputVolume: volume to be thresholded
+        :param outputVolume: thresholding result
+        :param imageThreshold: values above/below this threshold will be set to 0
+        :param invert: if True then values above the threshold will be set to 0, otherwise values below are set to 0
+        :param showResult: show output volume in slice viewers
+        """
 
         if not inputVolume or not outputVolume:
             raise ValueError("Input or output volume is invalid")
@@ -741,6 +778,8 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
                               model_path=ModelPath,
                               axis=-1, slices=1, shape=512)
 
+                # Loop over 3 slices in Axial View Only and apply heart segmentation
+                # TODO: Loop over 3 views
                 for slice in RawSliceArrays[0]:
                     SegmentedSlices.append(model.predict(np.array(slice)))
                 # for x in range(0, 3):
@@ -801,26 +840,32 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
         else:
             logging.info('PyTorch Found')
 
-    def CreateSegmentationNode(self, Segmentation, Name="Heart"):
+    def CreateSegmentationNode(self, Segmentation, Name="Heart", VolumeIJKToRAS="", HeartSegVis=False):
 
         # Create a new LabelMapVolume
         LabelMapVolumeNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLLabelMapVolumeNode', f'{Name}-Label')
+
+        # Set IJKToRAS Matrix To That of The Original Volume
+        if VolumeIJKToRAS:
+            LabelMapVolumeNode.SetIJKToRASMatrix(VolumeIJKToRAS)
 
         # Update the LabelMapVolume from the given Segmentation array
         slicer.util.updateVolumeFromArray(LabelMapVolumeNode, Segmentation)
 
         # Create a SegmentationNode
-        segNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLSegmentationNode", f'{Name}-Segmentation')
+        SegNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLSegmentationNode", f'{Name}-Segmentation')
 
         # Load the LabelMapVolume into the SegmentationNode
-        slicer.modules.segmentations.logic().ImportLabelmapToSegmentationNode(LabelMapVolumeNode, segNode)
+        slicer.modules.segmentations.logic().ImportLabelmapToSegmentationNode(LabelMapVolumeNode, SegNode)
 
-        # Update Display
-        # LabelmapVolumeNode.CreateDefaultDisplayNodes()
-        # LabelmapVolumeNode.CreateDefaultStorageNode()
+        if HeartSegVis:
+            # Create Closed Surface Representation
+            SegNode.CreateClosedSurfaceRepresentation()
 
-    def GetCoordinates(self, Segmentation, Partial, Local):
-        Coordinates = []
+        # Delete The LabelMapVolume
+        slicer.mrmlScene.RemoveNode(LabelMapVolumeNode)
+
+    def GetCoordinates(self, Segmentation, Partial):
         if Partial:
             Coordinates = get_coords(Segmentation)
         else:
