@@ -53,7 +53,7 @@ class Infer:
         self.model = torch.jit.load(self.trace)
         if torch.cuda.is_available():
             logging.info("GPU Processing")
-            self.model.load_state_dict(torch.load(self.path))
+            self.model.load_state_dict(torch.load(self.path), strict=False)
         else:
             logging.info("CPU Processing")
             self.model.load_state_dict(torch.load(self.path, map_location=torch.device('cpu')), strict=False)
