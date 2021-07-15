@@ -469,7 +469,13 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             SegmentationTime = 0
             Coordinates = []
             VolumeArray = np.array(slicer.util.arrayFromVolume(InputVolumeNode), copy=True)
-
+            # CLI Tests Start
+            # OutputVolume = []
+            # self.logic.CLITest(VolumeArray, self.LocalProcessing, ServerURL, Partial, HeartModelPath,
+            #                    HeartTracePath, OutputVolume)
+            # OutputVolume = self._parameterNode.GetParameter("outputVolume")
+            # print(OutputVolume)
+            # CLI Tests End
             # Check For Dependencies & Install Missing Ones
             if self.LocalProcessing:
                 self.logic.CheckDependencies()
@@ -587,6 +593,36 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
         }
         cliNode = slicer.cli.run(slicer.modules.thresholdscalarvolume, None, cliParams, wait_for_completion=True,
                                  update_display=showResult)
+        # We don't need the CLI module node anymore, remove it to not clutter the scene with it
+        slicer.mrmlScene.RemoveNode(cliNode)
+
+        stopTime = time.time()
+        logging.info('Processing completed in {0:.2f} seconds'.format(stopTime - startTime))
+
+    def CLITest(self, inputVolume, LocalProcessing=True, ProcessingURL="http://localhost:5000", Partial=True,
+                ModelPath="", TracePath="", outputVolume=None):
+
+        import time
+        startTime = time.time()
+        logging.info('Processing started')
+
+        CompressedVolume = BytesIO()
+        np.savez_compressed(CompressedVolume, Volume=inputVolume)
+        CompressedVolume.seek(0)
+        VolumeString = CompressedVolume.read()
+        VolumeStringDecoded = VolumeString.decode('UTF-8', errors="ignore")
+        # Compute the thresholded output volume using the "Threshold Scalar Volume" CLI module
+        cliParams = {
+            'inputVolume': VolumeStringDecoded,
+            'LocalProcessing': LocalProcessing,
+            'ProcessingURL': ProcessingURL,
+            'Partial': Partial,
+            'ModelPath': ModelPath,
+            'TracePath': TracePath,
+            'outputVolume': outputVolume
+        }
+        cliNode = slicer.cli.run(slicer.modules.segmentationfrommodel, None, cliParams, wait_for_completion=True)
+
         # We don't need the CLI module node anymore, remove it to not clutter the scene with it
         slicer.mrmlScene.RemoveNode(cliNode)
 
@@ -869,7 +905,7 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
         if Partial:
             Coordinates = get_coords(Segmentation)
         else:
-            Z = (Segmentation.shape[0]) / 2
+            Z = int((Segmentation.shape[0]) / 2)
             Coordinates = get_coords(Segmentation[Z - 1:Z + 1, :, :])
 
         return Coordinates
