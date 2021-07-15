@@ -372,6 +372,8 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.ui.OnlineSettings.setEnabled(True)
             self.ui.OnlineSettings.collapsed = False
 
+        self.AllowableOperations()
+
     def AllowableOperations(self):
 
         # Disable Partial Segmentation Option If Segmentation Node Creation Option is Enabled,
