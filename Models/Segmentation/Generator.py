@@ -217,6 +217,8 @@ class NiftyGen(tf.keras.utils.Sequence):
             if self.modeIs3D:
                 test_img = np.squeeze(img, 0)
                 test_seg = np.squeeze(seg, 0)
+                test_img = np.squeeze(test_img, -1)
+                test_seg = np.squeeze(test_seg, -1)
 
             fig, ax = plt.subplots(1, 2, figsize=(20, 20))
             for IMAGE in range(0, test_img.shape[-1], 50):
@@ -226,7 +228,6 @@ class NiftyGen(tf.keras.utils.Sequence):
                 if not os.path.isdir(self.target):
                     os.makedirs(self.target)
                 plt.savefig(os.path.join(self.target, f"IMG_BATCH_{index}_{IMAGE}"))
-        print(f"\nLoaded Sources with Shapes, {img.shape}, {seg.shape}", flush=True)
         return img, seg
 
     def on_epoch_end(self):
