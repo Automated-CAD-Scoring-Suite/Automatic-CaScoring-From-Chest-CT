@@ -892,7 +892,7 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
         if Partial:
             Coordinates = get_coords(Segmentation)
         else:
-            Z = (Segmentation.shape[0]) / 2
+            Z = int((Segmentation.shape[0]) / 2)
             Coordinates = get_coords(Segmentation[Z - 1:Z + 1, :, :])
 
         return Coordinates
