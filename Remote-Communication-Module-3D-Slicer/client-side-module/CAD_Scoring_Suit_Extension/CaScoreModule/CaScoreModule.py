@@ -121,26 +121,29 @@ def registerSampleData():
 #
 
 class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
-    """Uses ScriptedLoadableModuleWidget base class, available at:
-  https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
-  """
+    """
+    Uses ScriptedLoadableModuleWidget base class, available at:
+    https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
+    """
 
     def __init__(self, parent=None):
         """
-    Called when the user opens the module the first time and the widget is initialized.
-    """
+        Called when the user opens the module the first time and the widget is initialized.
+        """
+
         ScriptedLoadableModuleWidget.__init__(self, parent)
-        VTKObservationMixin.__init__(self)  # needed for parameter node observation
-        self.logic = None
-        self._parameterNode = None
+        VTKObservationMixin.__init__(self)                  # needed for parameter node observation
+
+        self.logic = None               # Used to store Logic Class
+        self._parameterNode = None      # Used to store the parameter node object
         self._updatingGUIFromParameterNode = False
 
-        self.LocalProcessing = True
+        self.LocalProcessing = True     # Flag to check if the Processing is Offline (Local) or Online
 
     def setup(self):
         """
-    Called when the user opens the module the first time and the widget is initialized.
-    """
+        Called when the user opens the module the first time and the widget is initialized.
+        """
         ScriptedLoadableModuleWidget.setup(self)
 
         # Load widget from .ui file (created by Qt Designer).
@@ -202,43 +205,44 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     def cleanup(self):
         """
-    Called when the application closes and the module widget is destroyed.
-    """
+        Called when the application closes and the module widget is destroyed.
+        """
         self.removeObservers()
 
     def enter(self):
         """
-    Called each time the user opens this module.
-    """
+        Called each time the user opens this module.
+        """
         # Make sure parameter node exists and observed
         self.initializeParameterNode()
 
     def exit(self):
         """
-    Called each time the user opens a different module.
-    """
-        # Do not react to parameter node changes (GUI wlil be updated when the user enters into the module)
+        Called each time the user opens a different module.
+        """
+        # Do not react to parameter node changes (GUI will be updated when the user enters into the module)
         self.removeObserver(self._parameterNode, vtk.vtkCommand.ModifiedEvent, self.updateGUIFromParameterNode)
 
     def onSceneStartClose(self, caller, event):
         """
-    Called just before the scene is closed.
-    """
+        Called just before the scene is closed.
+        """
         # Parameter node will be reset, do not use it anymore
         self.setParameterNode(None)
 
     def onSceneEndClose(self, caller, event):
         """
-    Called just after the scene is closed.
-    """
+        Called just after the scene is closed.
+        """
         # If this module is shown while the scene is closed then recreate a new parameter node immediately
         if self.parent.isEntered:
             self.initializeParameterNode()
 
     def initializeParameterNode(self):
         """
-    Ensure parameter node exists and observed.
-    """
+        Ensure parameter node exists and observed.
+        """
+
         # Parameter node stores all user choices in parameter values, node selections, etc.
         # so that when the scene is saved and reloaded, these settings are restored.
 
@@ -252,9 +256,9 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     def setParameterNode(self, inputParameterNode):
         """
-    Set and observe parameter node.
-    Observation is needed because when the parameter node is changed then the GUI must be updated immediately.
-    """
+        Set and observe parameter node.
+        Observation is needed because when the parameter node is changed then the GUI must be updated immediately.
+        """
 
         if inputParameterNode:
             self.logic.setDefaultParameters(inputParameterNode)
@@ -273,9 +277,9 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     def updateGUIFromParameterNode(self, caller=None, event=None):
         """
-    This method is called whenever parameter node is changed.
-    The module GUI is updated to show the current state of the parameter node.
-    """
+        This method is called whenever parameter node is changed.
+        The module GUI is updated to show the current state of the parameter node.
+        """
 
         if self._parameterNode is None or self._updatingGUIFromParameterNode:
             return
@@ -317,9 +321,9 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     def updateParameterNodeFromGUI(self, caller=None, event=None):
         """
-    This method is called when the user makes any change in the GUI.
-    The changes are saved into the parameter node (so that they are restored when the scene is saved and loaded).
-    """
+        This method is called when the user makes any change in the GUI.
+        The changes are saved into the parameter node (so that they are restored when the scene is saved and loaded).
+        """
 
         if self._parameterNode is None or self._updatingGUIFromParameterNode:
             return
@@ -327,7 +331,7 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         wasModified = self._parameterNode.StartModify()  # Modify all properties in a single batch
 
         self._parameterNode.SetNodeReferenceID("InputVolume", self.ui.inputSelector.currentNodeID)
-        # self._parameterNode.SetNodeReferenceID("OutputVolume", self.ui.outputSelector.currentNodeID)s
+        # self._parameterNode.SetNodeReferenceID("OutputVolume", self.ui.outputSelector.currentNodeID)
         # self._parameterNode.SetParameter("Threshold", str(self.ui.imageThresholdSliderWidget.value))
         # self._parameterNode.SetParameter("Invert", "true" if self.ui.invertOutputCheckBox.checked else "false")
         # self._parameterNode.SetNodeReferenceID("OutputVolumeInverse", self.ui.invertedOutputSelector.currentNodeID)
@@ -410,8 +414,8 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     def onApplyButton(self):
         """
-    Run processing when user clicks "Apply" button.
-    """
+        Run processing when user clicks "Apply" button.
+        """
         startTime = time.time()
         logging.info('Processing started')
 
@@ -445,6 +449,8 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         InputVolumeNode = self.ui.inputSelector.currentNode()
 
         # Get IJKToRAS Matrix
+        # Required to get some data from the volume (spacing, margin, etc.)
+        # This data is used after that to show the segmentation node after finished the processing
         VolumeIJKToRAS = vtk.vtkMatrix4x4()
         InputVolumeNode.GetIJKToRASMatrix(VolumeIJKToRAS)
 
@@ -486,6 +492,7 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             if CroppingEnabled and not SegAndCrop:
                 Coordinates = self.logic.GetCoordinates(Segmentation, Partial)
 
+            # Add margin to the segmentation output
             if CroppingEnabled or SegAndCrop:
                 x1 = (Coordinates[0] - 20) if (Coordinates[0] - 20 >= 0) else 0
                 x2 = (Coordinates[1] + 20) if (Coordinates[1] + 20 >= 0) else VolumeArray.shape[1]
@@ -496,6 +503,8 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 NewVolume = VolumeArray[:, x1:x2, y1:y2]
                 slicer.util.updateVolumeFromArray(InputVolumeNode, NewVolume)
                 logging.info(f"Cropped!")
+
+                # Center Volume in the Scene an update the view
                 CompositeNode = slicer.app.layoutManager().sliceWidget("Red").sliceLogic().GetSliceCompositeNode()
                 VolumeNodeID = CompositeNode.GetBackgroundVolumeID()
                 CurrentNode = slicer.mrmlScene.GetNodeByID(VolumeNodeID)
@@ -515,14 +524,16 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 #
 
 class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
-    """This class should implement all the actual
-  computation done by your module.  The interface
-  should be such that other python code can import
-  this class and make use of the functionality without
-  requiring an instance of the Widget.
-  Uses ScriptedLoadableModuleLogic base class, available at:
-  https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
-  """
+    """
+    This class should implement all the actual
+    computation done by your module.  The interface
+    should be such that other python code can import
+    this class and make use of the functionality without
+    requiring an instance of the Widget.
+    Uses ScriptedLoadableModuleLogic base class, available at:
+    https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
+    """
+
     finished = qt.Signal()
     progress = qt.Signal(int)
 
@@ -551,14 +562,14 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
 
     def processOld(self, inputVolume, outputVolume, imageThreshold, invert=False, showResult=True):
         """
-    Run the processing algorithm.
-    Can be used without GUI widget.
-    :param inputVolume: volume to be thresholded
-    :param outputVolume: thresholding result
-    :param imageThreshold: values above/below this threshold will be set to 0
-    :param invert: if True then values above the threshold will be set to 0, otherwise values below are set to 0
-    :param showResult: show output volume in slice viewers
-    """
+        Run the processing algorithm.
+        Can be used without GUI widget.
+        :param inputVolume: volume to be thresholded
+        :param outputVolume: thresholding result
+        :param imageThreshold: values above/below this threshold will be set to 0
+        :param invert: if True then values above the threshold will be set to 0, otherwise values below are set to 0
+        :param showResult: show output volume in slice viewers
+        """
 
         if not inputVolume or not outputVolume:
             raise ValueError("Input or output volume is invalid")
@@ -767,6 +778,8 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
                               model_path=ModelPath,
                               axis=-1, slices=1, shape=512)
 
+                # Loop over 3 slices in Axial View Only and apply heart segmentation
+                # TODO: Loop over 3 views
                 for slice in RawSliceArrays[0]:
                     SegmentedSlices.append(model.predict(np.array(slice)))
                 # for x in range(0, 3):
