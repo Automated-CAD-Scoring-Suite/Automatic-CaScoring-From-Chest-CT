@@ -22,6 +22,7 @@ include(${Slicer_USE_FILE})
 #-----------------------------------------------------------------------------
 # Extension modules
 add_subdirectory(CaScoreModule)
+add_subdirectory(SegmentationFromModel)
 ## NEXT_MODULE
 
 #-----------------------------------------------------------------------------
