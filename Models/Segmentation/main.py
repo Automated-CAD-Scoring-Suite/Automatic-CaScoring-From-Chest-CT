@@ -69,7 +69,7 @@ callbacks = [
     tf.keras.callbacks.ModelCheckpoint(filepath=f'{model_path}/{model.name}_checkpoint.h5', save_freq='epoch'),
     tf.keras.callbacks.EarlyStopping(monitor='loss', min_delta=0.001, patience=20),
     tf.keras.callbacks.ReduceLROnPlateau(),
-    tf.keras.callbacks.CSVLogger(f'{model.name}_logs.csv'),
+    tf.keras.callbacks.CSVLogger(f'{model.name}_logs2.csv'),
     cb.DisplayCallback()
 ]
 

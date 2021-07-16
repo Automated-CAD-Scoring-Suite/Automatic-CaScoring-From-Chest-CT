@@ -184,7 +184,7 @@ class NiftyGen(tf.keras.utils.Sequence):
         # Load Segmentation and Data in the Record
         image_path = os.path.join(self.path, self.records[index])
         img = nib.load(os.path.join(image_path, 'imaging.nii.gz')).get_fdata().astype('float32')
-        seg = nib.load(os.path.join(image_path, 'segmentation.nii.gz')).get_fdata().astype('float32')
+        seg = nib.load(os.path.join(image_path, 'seg_norm.nii.gz')).get_fdata().astype('float32')
 
         # Both Image and Segmentation must be with the same dimensions
         assert (img.shape == seg.shape), \
