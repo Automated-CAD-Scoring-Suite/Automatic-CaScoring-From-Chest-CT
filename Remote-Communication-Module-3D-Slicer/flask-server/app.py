@@ -15,6 +15,9 @@ sys.path.append(RepoRoot)
 from Models.crop_roi import get_coords
 from Models.Segmentation.Inference import Infer
 
+HeartTracePath = RepoRoot + "/Models/Segmentation/model_arch.pth"
+HeartModelPath = RepoRoot + "/Models/Segmentation/HarD-MSEG-best.pth"
+
 app = Flask(__name__)
 
 
@@ -44,98 +47,50 @@ def calculate_caScore():
 @app.route('/crop', methods=['POST'])
 def GetSlice():
     if request.method == 'POST':
-        # Names of Received Slices
-        Names = ["Ax1", "Ax2", "Ax3", "Sag1", "Sag2", "Sag3", "Cor1", "Cor2", "Cor3"]
-        # print(request.files)
-        # Get first Axial Slice Data & Shift Value
+
+        # Get Slices Data & Shift Values from the request
         slices = request.files
         shift = request.form
-        # Open Slice & reset shift
+
         if slices:
-            AxSlices = []
-            SagSlices = []
-            CorSlices = []
+            # Get Slices Segmentation
+            SegmentedSlices = GetSlicesSegmentation(slices, shift)
 
-            for SliceName in Names:
-                Slice = Image.open(slices[SliceName])
-                SliceArray = np.array(Slice, dtype="int16")
-                SliceArray += int(shift[SliceName])
-                if "Ax" in SliceName:
-                    model = Infer(trace_path=RepoRoot + "/Models/Segmentation/model_arch.pth",
-                                  model_path=RepoRoot + "/Models/Segmentation/HarD-MSEG-best.pth",
-                                  axis=-1, slices=1, shape=512)
-                    res = model.predict(SliceArray)
-                    # import matplotlib.pyplot as plt
-                    # fig, ax = plt.subplots(1, 1)
-                    # ax[0][0].imshow(res, cmap='gray')
-                    # plt.show()
-                    AxSlices.append(res)
-                # if "Ax" in SliceName:
-                #     AxSlices.append(res)
-                # elif "Sag" in SliceName:
-                #     SagSlices.append(res)
-                # elif "Cor" in SliceName:
-                #     CorSlices.append(res)
+            # Get Coordinates For Each View
+            AxCoor = [int(i) for i in get_coords(SegmentedSlices[0])]
+            SagCoor = [int(i) for i in get_coords(SegmentedSlices[1])]
+            CorCoor = [int(i) for i in get_coords(SegmentedSlices[2])]
+            Coor = [AxCoor, SagCoor, CorCoor]
 
-            AxCoor = [int(i) for i in get_coords(AxSlices)]
-            # SagCoor = [int(i) for i in get_coords(SagSlices)]
-            # CorCoor = [int(i) for i in get_coords(CorSlices)]
-            # Coor = [AxCoor, SagCoor, CorCoor]
-            return jsonify({"Coor": AxCoor})
-    return "Good"
+            # Send Coordinates
+            return jsonify({"Coor": Coor})
+    return 400
 
 
 @app.route('/segment/slices', methods=['POST'])
 def SegmentSlices():
     if request.method == 'POST':
-        # Names of Received Slices
-        Names = ["Ax1", "Ax2", "Ax3", "Sag1", "Sag2", "Sag3", "Cor1", "Cor2", "Cor3"]
-        # print(request.files)
-        # Get first Axial Slice Data & Shift Value
+        # Get Slices Data & Shift Values from the request
         slices = request.files
         shift = request.form
-        # Open Slice & reset shift
-        if slices:
-            AxSlices = []
-            SagSlices = []
-            CorSlices = []
 
-            for SliceName in Names:
-                Slice = Image.open(slices[SliceName])
-                SliceArray = np.array(Slice, dtype="int16")
-                SliceArray += int(shift[SliceName])
-                if "Ax" in SliceName:
-                    model = Infer(trace_path=RepoRoot + "/Models/Segmentation/model_arch.pth",
-                                  model_path=RepoRoot + "/Models/Segmentation/HarD-MSEG-best.pth",
-                                  axis=-1, slices=1, shape=512)
-                    res = model.predict(SliceArray)
-                    AxSlices.append(res)
-                # if "Ax" in SliceName:
-                #     AxSlices.append(res)
-                # elif "Sag" in SliceName:
-                #     SagSlices.append(res)
-                # elif "Cor" in SliceName:
-                #     CorSlices.append(res)
+        if slices:
+            # Get Slices Segmentation
+            SegmentedSlices = GetSlicesSegmentation(slices, shift)
+
+            # Compress For Sending
             CompressedArray = BytesIO()
-            np.savez_compressed(CompressedArray, SegmentedSlices=AxSlices)
+            np.savez_compressed(CompressedArray, SegmentedSlices=SegmentedSlices)
             CompressedArray.seek(0)
-            # AxCoor = [int(i) for i in get_coords(AxSlices)]
-            # SagCoor = [int(i) for i in get_coords(SagSlices)]
-            # CorCoor = [int(i) for i in get_coords(CorSlices)]
-            # Coor = [AxCoor, SagCoor, CorCoor]
+
+            # Send Segmented Slices
             return send_file(CompressedArray, attachment_filename="SegmentedSlices")
-    return "Good"
+    return 400
 
 
 @app.route('/segment/volume', methods=['POST'])
 def SegmentVolume():
     if request.method == 'POST':
-        Segmentation = []
-
-        # Load Model
-        model = Infer(trace_path=RepoRoot + "/Models/Segmentation/model_arch.pth",
-                      model_path=RepoRoot + "/Models/Segmentation/HarD-MSEG-best.pth",
-                      axis=-1, slices=1, shape=512)
 
         # Get Compressed Volume
         VolumeCompressed = request.files["Volume"]
@@ -144,17 +99,8 @@ def SegmentVolume():
         Data = np.load(VolumeCompressed)
         VolumeArray = Data['Volume']
 
-        Start = time.time()
-        # Loop Over Axial Slices
-        for i in range(VolumeArray.shape[0]):
-            SliceStart = time.time()
-            # Segment Heart in Slice
-            res = model.predict(VolumeArray[i, :, :])
-            Segmentation.append(res)
-            SliceEnd = time.time()
-            print("Segmented Slice Number {} in {:.2f}".format(i, (SliceEnd - SliceStart)))
-        End = time.time()
-        logging.info('Segmentation completed in {0:.2f} seconds'.format(End - Start))
+        # Get Segmentation
+        Segmentation = GetVolumeSegmentation(Volume=VolumeArray, ModelPath=HeartModelPath, TracePath=HeartTracePath)
 
         # Compress Segmentation Array
         CompressedArray = BytesIO()
@@ -164,9 +110,60 @@ def SegmentVolume():
         # Close The Loaded npz File To Prevent Memory Leaks
         Data.close()
 
+        # Return The Segmented Volume
         return send_file(CompressedArray, attachment_filename="SegmentedVolume.npz")
 
     return "Good"
+
+
+def GetSlicesSegmentation(Slices, Shift):
+    Names = ["Ax1", "Ax2", "Ax3", "Sag1", "Sag2", "Sag3", "Cor1", "Cor2", "Cor3"]
+    AxSlices = []
+    SagSlices = []
+    CorSlices = []
+    for SliceName in Names:
+        Slice = Image.open(Slices[SliceName])
+        SliceArray = np.array(Slice, dtype="int16")
+        SliceArray += int(Shift[SliceName])
+        model = Infer(trace_path=HeartTracePath, model_path=HeartModelPath,
+                      axis=-1, slices=1, shape=512)
+        res = model.predict(SliceArray)
+        if "Ax" in SliceName:
+            AxSlices.append(res)
+        elif "Sag" in SliceName:
+            SagSlices.append(res)
+        elif "Cor" in SliceName:
+            CorSlices.append(res)
+    SegmentedSlices = [AxSlices, SagSlices, CorSlices]
+    return SegmentedSlices
+
+
+def GetVolumeSegmentation(Volume, ModelPath, TracePath):
+    Segmentation = []
+    Times = []
+    # Load Model
+    model = Infer(trace_path=TracePath, model_path=ModelPath,
+                  axis=-1, slices=1, shape=512)
+
+    Start = time.time()
+
+    # Loop Over Axial Slices
+    for i in range(Volume.shape[0]):
+        # Calculate Slice Time
+        SliceStart = time.time()
+
+        # Segment Heart in Slice
+        res = model.predict(Volume[i, :, :])
+        Segmentation.append(res)
+        SliceEnd = time.time()
+        SliceTime = (SliceEnd - SliceStart)
+        print("Segmented Slice Number {} in {:.2f}".format(i, SliceTime))
+        Times.append(SliceTime)
+
+    End = time.time()
+    print('Segmentation completed in {0:.2f} seconds'.format(End - Start))
+
+    return Segmentation
 
 
 if __name__ == '__main__':
