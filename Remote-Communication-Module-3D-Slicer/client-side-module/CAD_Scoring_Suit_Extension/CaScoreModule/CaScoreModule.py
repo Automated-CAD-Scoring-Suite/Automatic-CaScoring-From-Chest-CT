@@ -27,7 +27,7 @@ RepoRoot = os.path.dirname(
 
 sys.path.append(RepoRoot)
 
-from Models.crop_roi import get_coords
+from Models.crop_roi import get_coords, GetCoords
 
 
 #
@@ -132,13 +132,13 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         """
 
         ScriptedLoadableModuleWidget.__init__(self, parent)
-        VTKObservationMixin.__init__(self)                  # needed for parameter node observation
+        VTKObservationMixin.__init__(self)  # needed for parameter node observation
 
-        self.logic = None               # Used to store Logic Class
-        self._parameterNode = None      # Used to store the parameter node object
+        self.logic = None  # Used to store Logic Class
+        self._parameterNode = None  # Used to store the parameter node object
         self._updatingGUIFromParameterNode = False
 
-        self.LocalProcessing = True     # Flag to check if the Processing is Offline (Local) or Online
+        self.LocalProcessing = True  # Flag to check if the Processing is Offline (Local) or Online
 
     def setup(self):
         """
@@ -412,6 +412,13 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         self.updateGUIFromParameterNode()
 
+    def RecenterVolume(self):
+        # Center Volume in the Scene an update the view
+        CompositeNode = slicer.app.layoutManager().sliceWidget("Red").sliceLogic().GetSliceCompositeNode()
+        VolumeNodeID = CompositeNode.GetBackgroundVolumeID()
+        CurrentNode = slicer.mrmlScene.GetNodeByID(VolumeNodeID)
+        slicer.util.setSliceViewerLayers(foreground=CurrentNode, fit=True)
+
     def onApplyButton(self):
         """
         Run processing when user clicks "Apply" button.
@@ -465,9 +472,9 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         try:
 
             # Initialize Variables
-            Segmentation = []
-            SegmentationTime = 0
-            Coordinates = []
+            self.Segmentation = []
+            self.SegmentationTime = 0
+            self.Coordinates = []
             VolumeArray = np.array(slicer.util.arrayFromVolume(InputVolumeNode), copy=True)
             # CLI Tests Start
             # OutputVolume = []
@@ -482,39 +489,42 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
             # Compute output
             if SegAndCrop and not self.LocalProcessing:
+
                 Coordinates = self.logic.SegAndCrop(VolumeArray, self.LocalProcessing,
                                                     ServerURL, HeartModelPath, HeartTracePath)
+                self.SegAndCropDone = True
 
             elif HeartSegNode or CroppingEnabled:
-                Segmentation, SegmentationTime = self.logic.Segment(VolumeArray, self.LocalProcessing,
-                                                                    ServerURL, Partial, True,
-                                                                    HeartModelPath, HeartTracePath)
-
-                logging.info('Segmentation completed in {0:.2f} seconds'.format(SegmentationTime))
+                self.Segmentation, self.SegmentationTime = self.logic.Segment(VolumeArray, self.LocalProcessing,
+                                                                              ServerURL, Partial, True,
+                                                                              HeartModelPath, HeartTracePath)
+                self.HeartSegDone = True
+                logging.info('Segmentation completed in {0:.2f} seconds'.format(self.SegmentationTime))
 
             if not Partial and HeartSegNode:
-                self.logic.CreateSegmentationNode(Segmentation, "Heart", VolumeIJKToRAS, HeartSeg3D)
+                self.logic.CreateSegmentationNode(self.Segmentation, "Heart", VolumeIJKToRAS, HeartSeg3D)
+                self.HeartSegNodeDone = True
 
-            if CroppingEnabled and not SegAndCrop:
-                Coordinates = self.logic.GetCoordinates(Segmentation, Partial)
+            if CroppingEnabled and not SegAndCrop and self.HeartSegDone:
+                self.Coordinates = self.logic.GetCoordinates(self.Segmentation, Partial, 20)
+                self.CoordinatesCalculated = True
 
-            # Add margin to the segmentation output
-            if CroppingEnabled or SegAndCrop:
-                x1 = (Coordinates[0] - 20) if (Coordinates[0] - 20 >= 0) else 0
-                x2 = (Coordinates[1] + 20) if (Coordinates[1] + 20 >= 0) else VolumeArray.shape[1]
-                y1 = (Coordinates[2] - 20) if (Coordinates[2] - 20 >= 0) else 0
-                y2 = (Coordinates[3] + 20) if (Coordinates[3] + 20 >= 0) else VolumeArray.shape[3]
+            elif CroppingEnabled and SegAndCrop:
+                # Add margin to the segmentation output
+                self.logic.AddMargin(Volume=VolumeArray, ROICoordinates=self.Coordinates, Margin=20)
+                self.CoordinatesCalculated = True
 
-                logging.info(f"The Cropping Coordinates Are X->{x1}:{x2}, Y->{y1}:{y2}")
-                NewVolume = VolumeArray[:, x1:x2, y1:y2]
+            if CroppingEnabled or SegAndCrop and self.CoordinatesCalculated:
+                logging.info(f"The Cropping Coordinates Are Z->{self.Coordinates[0]}:{self.Coordinates[1]}, "
+                             f"X->{self.Coordinates[2]}:{self.Coordinates[3]}, "
+                             f"Y->{self.Coordinates[4]}:{self.Coordinates[5]}")
+
+                NewVolume = self.logic.CropVolume(Volume=VolumeArray, Coordinates=self.Coordinates)
                 slicer.util.updateVolumeFromArray(InputVolumeNode, NewVolume)
                 logging.info(f"Cropped!")
 
-                # Center Volume in the Scene an update the view
-                CompositeNode = slicer.app.layoutManager().sliceWidget("Red").sliceLogic().GetSliceCompositeNode()
-                VolumeNodeID = CompositeNode.GetBackgroundVolumeID()
-                CurrentNode = slicer.mrmlScene.GetNodeByID(VolumeNodeID)
-                slicer.util.setSliceViewerLayers(foreground=CurrentNode, fit=True)
+            # Recenter & Fit The Volume
+            self.RecenterVolume()
 
         except Exception as e:
             slicer.util.errorDisplay("Failed to compute results: " + str(e))
@@ -816,8 +826,9 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
 
                 # Loop over 3 slices in Axial View Only and apply heart segmentation
                 # TODO: Loop over 3 views
-                for slice in RawSliceArrays[0]:
-                    SegmentedSlices.append(model.predict(np.array(slice)))
+                for i in range(3):
+                    for slice in RawSliceArrays[i]:
+                        SegmentedSlices.append(model.predict(np.array(slice)))
                 # for x in range(0, 3):
                 #     print(x)
                 #     Coordinates.append(get_coords(RawSliceArrays[x]))
@@ -901,14 +912,64 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
         # Delete The LabelMapVolume
         slicer.mrmlScene.RemoveNode(LabelMapVolumeNode)
 
-    def GetCoordinates(self, Segmentation, Partial):
-        if Partial:
-            Coordinates = get_coords(Segmentation)
-        else:
-            Z = int((Segmentation.shape[0]) / 2)
-            Coordinates = get_coords(Segmentation[Z - 1:Z + 1, :, :])
+    def GetCoordinates(self, Segmentation, Partial, Margin):
+        """
+        Gets The Cropping Parameters of The Given Segmentation
+        :param Segmentation: Segmentation Showing The Area of Interest
+        :param Partial: Whether The Given Segmentation is Partial (Slices in Each View) or The Full Volume
+        :param Margin: Margin Value Added To Calculated Coordinates
+        :return Coordinates: List Containing The Cropping Coordinates in Each Direction [z1, z2, x1, x2, y1, y2]
+        """
+        # Get CroppingCoordinates
+        ROICoordinates = GetCoords(Segmentation, Partial)
+
+        # Add Margin
+        Coordinates = self.AddMargin(Segmentation, ROICoordinates, Margin)
 
         return Coordinates
+
+    def AddMargin(self, Volume, ROICoordinates, Margin):
+        """
+        Gets The Cropping Parameters of The Given Segmentation
+        :param Volume: Original Volume/Segmentation
+        :param Coordinates: ROI Coordinates
+        :param Margin: Margin Value Added To Calculated Coordinates
+        :return Coordinates: List Containing The Cropping Coordinates in Each Direction [z1, z2, x1, x2, y1, y2]
+        """
+        # Add Margin
+        z1 = (ROICoordinates[0] - Margin) if (ROICoordinates[0] - Margin >= 0) else 0
+        z2 = (ROICoordinates[1] + Margin) if (ROICoordinates[1] + Margin >= 0) else Volume.shape[0]
+        x1 = (ROICoordinates[2] - Margin) if (ROICoordinates[2] - Margin >= 0) else 0
+        x2 = (ROICoordinates[3] + Margin) if (ROICoordinates[3] + Margin >= 0) else Volume.shape[1]
+        y1 = (ROICoordinates[4] - Margin) if (ROICoordinates[4] - Margin >= 0) else 0
+        y2 = (ROICoordinates[5] + Margin) if (ROICoordinates[5] + Margin >= 0) else Volume.shape[2]
+        Coordinates = [z1, z2, x1, x2, y1, y2]
+
+        return Coordinates
+
+    def CropVolume(self, Volume, Coordinates):
+        """
+        Crops The Volume Using The Given Coordinates
+       :param Volume: Volume To Be Cropped
+       :param Coordinates: List Containing The Cropping Cordinates in Each Direction [z1, z2, x1, x2, y1, y2]
+       :return CroppedVolume: ndarray of the cropped volume
+       """
+        CroppedVolume = np.copy(Volume[Coordinates[0]: Coordinates[1] + 1, Coordinates[2]: Coordinates[3] + 1,
+                                Coordinates[4]: Coordinates[5] + 1])
+        return CroppedVolume
+
+    def CropVolumeWithSegmentation(self, Volume, Segmentation, Partial, Margin):
+        """
+       Crops The Volume Using The Area of Interest Found in The Segmentation
+        :param Volume: Volume To Be Cropped
+       :param Segmentation: Segmentation Showing The Area of Interest
+       :param Partial: Whether The Given Segmentation is Partial (Slices in Each View) or The Full Volume
+       :param Margin: Margin Value Added To Calculated Coordinates
+       :return CroppedVolume: NumPy Array of The Cropped Volume
+       """
+        Coordinates = self.GetCoordinates(Segmentation, Partial, Margin)
+        CroppedVolume = self.CropVolume(Volume, Coordinates)
+        return CroppedVolume
 
 
 #
