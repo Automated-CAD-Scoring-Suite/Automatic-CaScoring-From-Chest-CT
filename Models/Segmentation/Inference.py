@@ -50,6 +50,7 @@ class Infer:
         self.slices = slices
         self.shape = shape
         self.channels = channels
+        self.data_shape = None
         self.model = torch.jit.load(self.trace)
         if torch.cuda.is_available():
             logging.info("GPU Processing")
@@ -59,6 +60,7 @@ class Infer:
             self.model.load_state_dict(torch.load(self.path, map_location=torch.device('cpu')), strict=False)
 
     def predict(self, data: np.ndarray):
+        self.data_shape = data.shape
         slices = self.__prepare_data(data)
         res = self.model(slices)
         return self.__post_process(res, threshold=0.5)
@@ -70,18 +72,15 @@ class Infer:
             src = np.expand_dims(src, -1)
         src = self.range_scale(src)
         src = zoom(src, (self.shape / src_shape[0], self.shape / src_shape[0], 1))
-        # print(src.shape)
         src = np.expand_dims(src, 0)
         if self.channels == 1:
             src = np.repeat(src, 3, 0)
-        # print(src.shape)
         src = np.moveaxis(src, -1, 0)
         src = torch.Tensor(src)
         return src
 
-    @staticmethod
-    def __post_process(source, threshold: float):
-        src = torch.nn.functional.upsample(source, size=(512, 512), mode='bilinear', align_corners=False)
+    def __post_process(self, source, threshold: float):
+        src = torch.nn.functional.upsample(source, size=self.data_shape, mode='bilinear', align_corners=False)
         src = src.sigmoid().data.cpu().numpy().squeeze()
         src = (src - src.min()) / (src.max() - src.min() + 1e-8)
         src[src <= threshold] = 0.0
@@ -103,5 +102,3 @@ class Infer:
         src[src > 1] = 1.
         src[src < 0] = 0.
         return src
-
-# if __name__ == '__main__':
