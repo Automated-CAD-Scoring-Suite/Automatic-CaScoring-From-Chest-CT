@@ -610,7 +610,7 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
         logging.info('Processing completed in {0:.2f} seconds'.format(stopTime - startTime))
 
     def CLITest(self, inputVolume, LocalProcessing=True, ProcessingURL="http://localhost:5000", Partial=True,
-                ModelPath="", TracePath="", outputVolume=None):
+                ModelPath=None, TracePath=None, outputVolume=None):
 
         import time
         startTime = time.time()
@@ -640,7 +640,7 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
         logging.info('Processing completed in {0:.2f} seconds'.format(stopTime - startTime))
 
     def SegAndCrop(self, inputVolume, LocalProcessing=True, ProcessingURL="http://localhost:5000",
-                   ModelPath="", TracePath=""):
+                   ModelPath=None, TracePath=None):
 
         # TODO: Receive Routes From Caller
         if inputVolume is None:
@@ -651,55 +651,12 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
 
         # Convert Volume To NumPy Array
         VolumeArray = np.copy(inputVolume)
-        VolumeShape = VolumeArray.shape
-
-        # Cropping Pattern Start
-        # CompressedArray = BytesIO()
-        # np.savez_compressed(CompressedArray, a=VolumeArray)
-
-        # Axial, Sagittal, Coronal
-        Names = ["Ax1", "Ax2", "Ax3", "Sag1", "Sag2", "Sag3", "Cor1", "Cor2", "Cor3"]
-        files = {}
-        ShiftValues = {}
-        RawSliceArrays = [[], [], []]
-        Arr = []
-        Coordinates = []
 
         # Prepare Slices
-        for i in range(3):
-            Mid = int(VolumeShape[i] / 2)
-            if i == 0:
-                logging.info(f"Preparing Axial Slices Number {Mid - 1}, {Mid}, {Mid + 1}")
-            elif i == 1:
-                logging.info(f"Preparing Sagittal Slices Number {Mid - 1}, {Mid}, {Mid + 1}")
-            elif i == 2:
-                logging.info(f"Preparing Coronal Slices Number {Mid - 1}, {Mid}, {Mid + 1}")
-            for j in range(-1, 2):
-                if i == 0:
-                    # Prepare Axial Slices
-                    Arr = VolumeArray[Mid + j, :, :]
-                elif i == 1:
-                    # Prepare Sagittal Slices
-                    Arr = VolumeArray[:, Mid + j, :]
-                elif i == 2:
-                    # Prepare Coronal Slices
-                    Arr = VolumeArray[:, :, Mid + j]
-                RawSliceArrays[i].append(Arr)
-                if not LocalProcessing:
-                    ArrS = Arr.min()
-                    # Shift Array Values if There Exists -Ve Values, since -ve values are lost during PNG conversion,
-                    # and store the shift value to be sent
-                    if ArrS < 0:
-                        Arr -= ArrS
-                        ShiftValues[Names[0]] = ArrS
-                    else:
-                        ShiftValues[Names[0]] = 0
-                    SliceImg = Image.fromarray(Arr)
-                    SliceBytes = BytesIO()
-                    SliceImg.save(SliceBytes, format="PNG")
-                    SliceBytes.seek(0, 0)
-                    files[Names.pop(0)] = SliceBytes
+        RawSliceArrays, files, ShiftValues = self.GetSampleSlicesFromVolume(VolumeArray=VolumeArray,
+                                                                            Local=LocalProcessing)
 
+        # Send to Server For Processing
         if not LocalProcessing:
             SliceSendReq = requests.post(ProcessingURL + "/crop", files=files, data=ShiftValues)
             Coordinates = SliceSendReq.json()["Coor"]
@@ -707,12 +664,15 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
         else:
             from Models.Segmentation.Inference import Infer
             model = Infer(trace_path=TracePath, model_path=ModelPath)
-            res = model.predict(np.array(RawSliceArrays[0]))
-            Coordinates.append(get_coords(res))
+            AxSeg = model.predict(np.array(RawSliceArrays[0]))
+            SagSeg = model.predict(np.array(RawSliceArrays[1]))
+            CorSeg = model.predict(np.array(RawSliceArrays[2]))
 
-            # for x in range(0, 3):
-            #     print(x)
-            #     Coordinates.append(get_coords(RawSliceArrays[x]))
+            AxCoor = [int(i) for i in get_coords(AxSeg)]
+            SagCoor = [int(i) for i in get_coords(SagSeg)]
+            CorCoor = [int(i) for i in get_coords(CorSeg)]
+
+            Coordinates = [AxCoor, SagCoor, CorCoor]
 
             logging.info(f"Cropping Coordinates Calculated Locally")
 
@@ -722,40 +682,15 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
             'Segmentation & Coordinates Calculation Completed in in {0:.2f} seconds'.format(stopTime - startTime))
 
         return Coordinates
-        # [z,x,y]
-        # Coordinates = [[Xmin, Xmax, Ymin, Ymax],[Zmin,Zmax, Ymin, Ymax],[Zmin, Zmax, Xmin,Xmax]]
-        # Start Cropping
-        # Determine Correct Cropping Coordinates
-
-        # x1 = np.minimum(Coordinates[0][0], Coordinates[2][0])
-        # x2 = np.maximum(Coordinates[0][1], Coordinates[2][1])
-        # y1 = np.minimum(Coordinates[0][2], Coordinates[1][0])
-        # y2 = np.maximum(Coordinates[0][3], Coordinates[1][1])
-        # z1 = np.minimum(Coordinates[1][2], Coordinates[2][2])
-        # z2 = np.maximum(Coordinates[1][3], Coordinates[2][3])
-        # logging.info(f"The Cropping Coordinates Are X->{x1}:{x2}, Y->{y1}:{y2}, Z->{z1}:{z2}")
-
-        # LabelVolume Tests
-        # imageOrigin = [0.0, 0.0, 0.0]
-        # imageSpacing = [0.4883, 0.4883, 2.5]
-        # imageDirections = [[-1, 0, 0], [0, -1, 0], [0, 0, -1]]
-        # a = np.zeros([VolumeShape[0], VolumeShape[1], VolumeShape[2]])
-        # a[0:VolumeShape[0], 0:VolumeShape[1], 0:VolumeShape[2]] = 1
-        # print(a)
-        # LabelmapVolumeNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLLabelMapVolumeNode', 'Heart-Label')
-        # LabelmapVolumeNode.SetOrigin(imageOrigin)
-        # LabelmapVolumeNode.SetSpacing(imageSpacing)
-        # LabelmapVolumeNode.SetIJKToRASDirections(imageDirections)
-        # slicer.util.updateVolumeFromArray(LabelmapVolumeNode, a)
-        # LabelmapVolumeNode.CreateDefaultDisplayNodes()
-        # LabelmapVolumeNode.CreateDefaultStorageNode()
-        # slicer.util.loadLabelVolume(r'c:\Users\msliv\Documents\test.nrrd')
 
     def Segment(self, inputVolume, LocalProcessing=True, ProcessingURL="http://localhost:5000", Partial=True,
-                ReturnTime=True, ModelPath="", TracePath=""):
+                ReturnTime=True, ModelPath=None, TracePath=None):
         # TODO: Receive Routes From Caller
         if inputVolume is None:
             raise ValueError("Input volume is invalid")
+
+        if ModelPath is None or TracePath is None:
+            raise ValueError("Model or Trace Path Are Incorrect")
 
         # Get Segmentation Start Time
         SegmentStart = time.time()
@@ -767,49 +702,12 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
 
         # Segment 3 Slicers From Each View
         if Partial:
-            # Axial, Sagittal, Coronal
-            Names = ["Ax1", "Ax2", "Ax3", "Sag1", "Sag2", "Sag3", "Cor1", "Cor2", "Cor3"]
-            files = {}
-            ShiftValues = {}
-            RawSliceArrays = [[], [], []]
-            Coordinates = []
 
-            # Prepare Slices
-            for i in range(3):
-                Mid = int(VolumeShape[i] / 2)
-                if i == 0:
-                    logging.info(f"Preparing Axial Slices Number {Mid - 1}, {Mid}, {Mid + 1}")
-                elif i == 1:
-                    logging.info(f"Preparing Sagittal Slices Number {Mid - 1}, {Mid}, {Mid + 1}")
-                elif i == 2:
-                    logging.info(f"Preparing Coronal Slices Number {Mid - 1}, {Mid}, {Mid + 1}")
-                for j in range(-1, 2):
-                    if i == 0:
-                        # Prepare Axial Slices
-                        Arr = VolumeArray[Mid + j, :, :]
-                    elif i == 1:
-                        # Prepare Sagittal Slices
-                        Arr = VolumeArray[:, Mid + j, :]
-                    elif i == 2:
-                        # Prepare Coronal Slices
-                        Arr = VolumeArray[:, :, Mid + j]
-                    RawSliceArrays[i].append(Arr)
-                    if not LocalProcessing:
-                        ArrS = Arr.min()
-                        # Shift Array Values if There Exists -Ve Values, since -ve values are lost during PNG
-                        # conversion, and store the shift value to be sent
-                        if ArrS < 0:
-                            Arr -= ArrS
-                            ShiftValues[Names[0]] = ArrS
-                        else:
-                            ShiftValues[Names[0]] = 0
-                        SliceImg = Image.fromarray(Arr)
-                        SliceBytes = BytesIO()
-                        SliceImg.save(SliceBytes, format="PNG")
-                        SliceBytes.seek(0, 0)
-                        files[Names.pop(0)] = SliceBytes
+            RawSliceArrays, files, ShiftValues = self.GetSampleSlicesFromVolume(VolumeArray=VolumeArray,
+                                                                                Local=LocalProcessing)
 
             if not LocalProcessing:
+                # Send Data To Server For Processing
                 SliceSendReq = requests.post(ProcessingURL + "/segment/slices", files=files, data=ShiftValues)
                 Response = BytesIO(SliceSendReq.content)
                 Response.seek(0)
@@ -817,25 +715,19 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
                 SegmentedSlices = np.copy(Data["SegmentedSlices"])
                 Data.close()
                 logging.info(f"Segmented Slices Received From Server")
-                # logging.info(f"Received Cropping Coordinates From Online Server")
-            else:
-                from Models.Segmentation.Inference import Infer
-                model = Infer(trace_path=TracePath,
-                              model_path=ModelPath,
-                              axis=-1, slices=1, shape=512)
 
-                # Loop over 3 slices in Axial View Only and apply heart segmentation
-                # TODO: Loop over 3 views
+            else:
+                # Load Model
+                from Models.Segmentation.Inference import Infer
+                model = Infer(trace_path=TracePath, model_path=ModelPath, axis=-1, slices=1, shape=512)
+
+                # Loop over 3 slices in each View and apply heart segmentation
                 for i in range(3):
                     for slice in RawSliceArrays[i]:
                         SegmentedSlices.append(model.predict(np.array(slice)))
-                # for x in range(0, 3):
-                #     print(x)
-                #     Coordinates.append(get_coords(RawSliceArrays[x]))
 
-                # Coordinates.append(get_coords(res))
                 logging.info(f"Segmentation Computed Locally")
-                # logging.info(f"Cropping Coordinates Calculated Locally")
+
         else:
             if not LocalProcessing:
                 CompressedVolume = BytesIO()
@@ -848,23 +740,17 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
                 SegmentedSlices = np.copy(Data['Segmentation'])
                 Data.close()
                 logging.info(f"Segmented Slices Received From Server")
-                # logging.info(f"Received Cropping Coordinates From Online Server")
+
             else:
                 from Models.Segmentation.Inference import Infer
-                model = Infer(trace_path=TracePath, model_path=ModelPath,
-                              axis=-1, slices=1, shape=512)
+                model = Infer(trace_path=TracePath, model_path=ModelPath, axis=-1, slices=1, shape=512)
 
                 for i in range(VolumeShape[0]):
                     # Segment Heart in Slice
                     res = model.predict(VolumeArray[i, :, :])
                     SegmentedSlices.append(res)
-                # SegmentedSlices = model.predict(np.asarray(RawSliceArrays[0]))
-                # for x in range(0, 3):
-                #     print(x)
-                #     Coordinates.append(get_coords(RawSliceArrays[x]))
-                # Coordinates.append(get_coords(res))
+
                 logging.info(f"Segmentation Computed Locally")
-                # logging.info(f"Cropping Coordinates Calculated Locally")
 
         # Calculate Segmentation Time
         SegmentEnd = time.time()
@@ -887,8 +773,14 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
         else:
             logging.info('PyTorch Found')
 
-    def CreateSegmentationNode(self, Segmentation, Name="Heart", VolumeIJKToRAS="", HeartSegVis=False):
-
+    def CreateSegmentationNode(self, Segmentation, Name=None, VolumeIJKToRAS=None, HeartSegVis=False):
+        """
+        Creates A Segmentation Node From The Given Segmentation
+        :param Segmentation: NumPy Array Containing The Segmentation
+        :param Name: Name TO Give To The Segmentation Node
+        :param VolumeIJKToRAS: IJKToRAS Matrix of The Original Volume
+        :param HeartSegVis: If True Creates a Closed Surface Representation of The Segmentation (3D View)
+        """
         # Create a new LabelMapVolume
         LabelMapVolumeNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLLabelMapVolumeNode', f'{Name}-Label')
 
@@ -932,10 +824,11 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
         """
         Gets The Cropping Parameters of The Given Segmentation
         :param Volume: Original Volume/Segmentation
-        :param Coordinates: ROI Coordinates
+        :param ROICoordinates: ROI Coordinates
         :param Margin: Margin Value Added To Calculated Coordinates
         :return Coordinates: List Containing The Cropping Coordinates in Each Direction [z1, z2, x1, x2, y1, y2]
         """
+
         # Add Margin
         z1 = (ROICoordinates[0] - Margin) if (ROICoordinates[0] - Margin >= 0) else 0
         z2 = (ROICoordinates[1] + Margin) if (ROICoordinates[1] + Margin >= 0) else Volume.shape[0]
@@ -970,6 +863,52 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
         Coordinates = self.GetCoordinates(Segmentation, Partial, Margin)
         CroppedVolume = self.CropVolume(Volume, Coordinates)
         return CroppedVolume
+
+    def GetSampleSlicesFromVolume(self, VolumeArray=None, Local=True):
+
+        # Axial, Sagittal, Coronal
+        Names = ["Ax1", "Ax2", "Ax3", "Sag1", "Sag2", "Sag3", "Cor1", "Cor2", "Cor3"]
+        files = {}
+        ShiftValues = {}
+        RawSliceArrays = [[], [], []]
+        VolumeShape = VolumeArray.shape
+
+        # Prepare Slices
+        for i in range(3):
+            Mid = int(VolumeShape[i] / 2)
+            if i == 0:
+                logging.info(f"Preparing Axial Slices Number {Mid - 1}, {Mid}, {Mid + 1}")
+            elif i == 1:
+                logging.info(f"Preparing Sagittal Slices Number {Mid - 1}, {Mid}, {Mid + 1}")
+            elif i == 2:
+                logging.info(f"Preparing Coronal Slices Number {Mid - 1}, {Mid}, {Mid + 1}")
+            for j in range(-1, 2):
+                if i == 0:
+                    # Prepare Axial Slices
+                    Arr = VolumeArray[Mid + j, :, :]
+                elif i == 1:
+                    # Prepare Sagittal Slices
+                    Arr = VolumeArray[:, Mid + j, :]
+                elif i == 2:
+                    # Prepare Coronal Slices
+                    Arr = VolumeArray[:, :, Mid + j]
+                RawSliceArrays[i].append(Arr)
+                if not Local:
+                    ArrS = Arr.min()
+                    # Shift Array Values if There Exists -Ve Values, since -ve values are lost during PNG
+                    # conversion, and store the shift value to be sent
+                    if ArrS < 0:
+                        Arr -= ArrS
+                        ShiftValues[Names[0]] = ArrS
+                    else:
+                        ShiftValues[Names[0]] = 0
+                    SliceImg = Image.fromarray(Arr)
+                    SliceBytes = BytesIO()
+                    SliceImg.save(SliceBytes, format="PNG")
+                    SliceBytes.seek(0, 0)
+                    files[Names.pop(0)] = SliceBytes
+
+        return RawSliceArrays, files, ShiftValues
 
 
 #

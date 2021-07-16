@@ -45,7 +45,7 @@ def calculate_caScore():
 
 
 @app.route('/crop', methods=['POST'])
-def GetSlice():
+def GetCropCoordinates():
     if request.method == 'POST':
 
         # Get Slices Data & Shift Values from the request
