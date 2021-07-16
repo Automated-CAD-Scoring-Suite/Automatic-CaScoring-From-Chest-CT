@@ -3,7 +3,7 @@
 #
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Concatenate, Input, BatchNormalization, Dropout
-from .modes import Conv, Transpose, Pooling, UpSample
+from Unet.modes import Conv, Transpose, Pooling, UpSample
 
 
 class UNet:
@@ -108,5 +108,5 @@ if __name__ == '__main__':
     model = uNet3D(5, 2, (112, 112, 112, 1), (3, 3, 3))
     # uNet = UNet(transpose='upSample3D')
     # model = uNet(4, 2, (128, 128, 1), (3, 3))
-    # print(model.summary())
+    print(model.summary())
     # plot_model(model, show_shapes=True, to_file='model3.png')

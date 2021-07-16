@@ -30,30 +30,36 @@ if gpus:
         print(e)
 ################################################################################################################
 # MODEL PARAMETERS
-down_factor = 8
-input_shape = (512//down_factor, 512//down_factor, 1)
-# input_shape = (128, 128, 1)
-levels = 4
-kernel_size = (3, 3)
+mode = '3D'
+down_factor = True
+output_shape = (112, 112, 112)
+input_shape = (112, 112, 112, 1)
+levels = 5
+kernel_size = (3, 3, 3)
 convolutions = 2
 initial_features = 32
+
 batch_norm = False
-drop_out = 0.5
+drop_out = None
 activation = 'relu'
-lr = 0.001
+lr = 0.0001
 optimizer = tf.keras.optimizers.Adam(lr)
 ####################################################################################################################
 # Augmentation Parameters
 aug = NiftyAugmentor([-10, 10, 0], [0.95, 1, 1.1], [0, 1])
 
 # Dataset Loader, NIFTY Loader
-gen = NiftyGen(training, augmenter=aug, down_factor=down_factor, save=False)
-gen_val = NiftyGen(validation, augmenter=None, down_factor=down_factor)
+gen = NiftyGen(training, augmenter=aug, mode=mode, output_shape=output_shape, down_factor=down_factor, save=False)
+gen_val = NiftyGen(validation, augmenter=None, mode=mode, output_shape=output_shape, down_factor=down_factor)
 
 # MODEL INSTANTIATION
-UNet2D = UNet(transpose='transpose2D')
-model = UNet2D(levels, convolutions, input_shape, kernel_size, activation=activation,
-               batch_norm=batch_norm, drop_out=drop_out, initial_features=initial_features)
+uNet3D = UNet("conv3D", up_sample="upSample3D", transpose=None, pool="max3D")
+model = uNet3D(levels=levels, convolutions=convolutions, input_shape=input_shape, kernel_size=kernel_size,
+               activation=activation, batch_norm=batch_norm, drop_out=drop_out, initial_features=initial_features)
+
+# UNet2D = UNet(transpose='transpose2D')
+# model = UNet2D(levels, convolutions, input_shape, kernel_size, activation=activation,
+#                batch_norm=batch_norm, drop_out=drop_out, initial_features=initial_features)
 
 print(model.summary())
 ###################################################################################################################
@@ -63,6 +69,7 @@ callbacks = [
     tf.keras.callbacks.ModelCheckpoint(filepath=f'{model_path}/{model.name}_checkpoint.h5', save_freq='epoch'),
     tf.keras.callbacks.EarlyStopping(monitor='loss', min_delta=0.001, patience=20),
     tf.keras.callbacks.ReduceLROnPlateau(),
+    tf.keras.callbacks.CSVLogger(f'{model.name}_logs.csv'),
     cb.DisplayCallback()
 ]
 

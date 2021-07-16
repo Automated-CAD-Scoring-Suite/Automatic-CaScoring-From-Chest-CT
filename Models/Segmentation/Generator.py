@@ -9,6 +9,7 @@ import numpy as np
 import tensorflow as tf
 from scipy.ndimage import zoom, rotate
 from skimage.exposure import adjust_gamma
+from skimage.transform import resize
 import random
 
 
@@ -70,7 +71,7 @@ class NiftyGen(tf.keras.utils.Sequence):
     """Keras Sequence for loading Nifty image formats"""
 
     def __init__(self, images_path: str, mode: str = '2D', augmenter=None,
-                 scale: bool = True, shuffle: bool = True, down_factor=None, channels: int = 1, save: bool = False):
+                 scale: bool = True, shuffle: bool = True, down_factor=None, output_shape=None, channels: int = 1, save: bool = False):
         self.path = images_path
         self.channels = channels
         self.down_factor = down_factor
@@ -79,6 +80,7 @@ class NiftyGen(tf.keras.utils.Sequence):
         self.aug = augmenter
         self.mode = mode
         self.save_batch = save
+        self.output_shape = output_shape
         self.modeIs2D = bool(mode == "2D")
         self.modeIs3D = bool(mode == "3D")
         self.target = "Batches"
@@ -139,15 +141,19 @@ class NiftyGen(tf.keras.utils.Sequence):
         :return:
         """
         src = np.copy(img)
-        # Fix Scan Orientation
-        src = rotate(src, 90)
 
         # Scale Image in
         if self.scale and not segmentation:
             src = self.range_scale(src)
+
+        # Fix Scan Orientation
+        src = rotate(src, 90)
+
         # Down Sample the image with the selected Factor
         if self.down_factor:
-            src = self.zoom3D(src, self.down_factor)
+            # src = self.zoom3D(src, self.down_factor)
+            src = resize(src, output_shape=self.output_shape)
+
         # Shuffle the Images in the Z direction
         if self.shuffle:
             src = self.ShuffleImg(src)
@@ -167,6 +173,7 @@ class NiftyGen(tf.keras.utils.Sequence):
         if self.modeIs3D:
             src = np.expand_dims(src, 0)
             src = np.expand_dims(src, -1)
+
         if self.modeIs2D:
             # H, W, S
             src = np.moveaxis(src, -1, 0)
@@ -210,6 +217,8 @@ class NiftyGen(tf.keras.utils.Sequence):
             if self.modeIs3D:
                 test_img = np.squeeze(img, 0)
                 test_seg = np.squeeze(seg, 0)
+                test_img = np.squeeze(test_img, -1)
+                test_seg = np.squeeze(test_seg, -1)
 
             fig, ax = plt.subplots(1, 2, figsize=(20, 20))
             for IMAGE in range(0, test_img.shape[-1], 50):
@@ -219,7 +228,6 @@ class NiftyGen(tf.keras.utils.Sequence):
                 if not os.path.isdir(self.target):
                     os.makedirs(self.target)
                 plt.savefig(os.path.join(self.target, f"IMG_BATCH_{index}_{IMAGE}"))
-        print(f"\nLoaded Sources with Shapes, {img.shape}, {seg.shape}", flush=True)
         return img, seg
 
     def on_epoch_end(self):
