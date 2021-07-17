@@ -482,24 +482,11 @@ class Signals(qt.QObject):
     progress = qt.Signal(str)
 
 
-# 1. Subclass QRunnable
-class Runnable(qt.QRunnable):
-    def __init__(self):
-        super().__init__()
-        self.n = 2
-
-    def run(self):
-        # Your long-running task goes here ...
-        for i in range(5):
-            logging.info(f"Working in thread {self.n}, step {i + 1}/5")
-            time.sleep(random.randint(700, 2500) / 1000)
-
-
 #
 # CaScoreModuleLogic
 #
 
-class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QRunnable):
+class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
     """
     This class should implement all the actual
     computation done by your module.  The interface
@@ -535,7 +522,6 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QRunnable):
         self.Segmentation = None
         self.SegmentationTime = None
         self.Coordinates = None
-        self.Signals = Signals()
 
     def setDefaultParameters(self, parameterNode):
         """
