@@ -296,9 +296,7 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # self.ui.invertOutputCheckBox.checked = (self._parameterNode.GetParameter("Invert") == "true")
 
         self.ui.HeartModelPath.currentPath = self._parameterNode.GetParameter("HeartModelPath")
-        self.ui.HeartTracePath.currentPath = self._parameterNode.GetParameter("HeartTracePath")
         self.ui.CalModelPath.currentPath = self._parameterNode.GetParameter("CalModelPath")
-        self.ui.CalTracePath.currentPath = self._parameterNode.GetParameter("CalTracePath")
 
         if self._parameterNode.GetParameter("CroppingEnabled"):
             self.ui.CroppingEnabled.checked = strtobool(self._parameterNode.GetParameter("CroppingEnabled"))
@@ -350,9 +348,7 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self._parameterNode.SetParameter("SegAndCrop", "true" if self.ui.SegAndCrop.checked else "false")
         self._parameterNode.SetParameter("Anonymize", "true" if self.ui.Anonymize.checked else "false")
         self._parameterNode.SetParameter("HeartModelPath", self.ui.HeartModelPath.currentPath)
-        self._parameterNode.SetParameter("HeartTracePath", self.ui.HeartTracePath.currentPath)
         self._parameterNode.SetParameter("CalModelPath", self.ui.CalModelPath.currentPath)
-        self._parameterNode.SetParameter("CalTracePath", self.ui.CalTracePath.currentPath)
 
         self._parameterNode.EndModify(wasModified)
 
@@ -452,9 +448,7 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         CroppingEnabled = bool(strtobool(self._parameterNode.GetParameter("CroppingEnabled")))
         SegAndCrop = bool(strtobool(self._parameterNode.GetParameter("SegAndCrop")))
         HeartModelPath = self._parameterNode.GetParameter("HeartModelPath")
-        HeartTracePath = self._parameterNode.GetParameter("HeartTracePath")
         CalModelPath = self._parameterNode.GetParameter("CalModelPath")
-        CalTracePath = self._parameterNode.GetParameter("CalTracePath")
         ServerURL = self._parameterNode.GetParameter("URL")
 
         # Get Input Volume
@@ -511,9 +505,7 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
         self.CroppingEnabled = None
         self.SegAndCrop = None
         self.HeartModelPath = None
-        self.HeartTracePath = None
         self.CalModelPath = None
-        self.CalTracePath = None
         self.ServerURL = None
         self.SegAndCropDone = None
         self.HeartSegDone = None
@@ -532,13 +524,9 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
         if not parameterNode.GetParameter("Local"):
             parameterNode.SetParameter("Local", "true")
         if not parameterNode.GetParameter("HeartModelPath"):
-            Path = RepoRoot + '/Models/Segmentation/HarD-MSEG-best.pth'
+            Path = RepoRoot + '/Models/Segmentation/Models_Saved/Heart_Localization'
             if os.path.exists(Path):
                 parameterNode.SetParameter("HeartModelPath", Path)
-        if not parameterNode.GetParameter("HeartTracePath"):
-            Path = RepoRoot + '/Models/Segmentation/model_arch.pth'
-            if os.path.exists(Path):
-                parameterNode.SetParameter("HeartTracePath", Path)
 
     def processOld(self, inputVolume, outputVolume, imageThreshold, invert=False, showResult=True):
         """
@@ -583,9 +571,7 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
         self.CroppingEnabled = None
         self.SegAndCrop = None
         self.HeartModelPath = None
-        self.HeartTracePath = None
         self.CalModelPath = None
-        self.CalTracePath = None
         self.ServerURL = None
         self.SegAndCropDone = None
         self.HeartSegDone = None
@@ -618,9 +604,7 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
         self.CroppingEnabled = bool(strtobool(parameterNode.GetParameter("CroppingEnabled")))
         self.SegAndCrop = bool(strtobool(parameterNode.GetParameter("SegAndCrop")))
         self.HeartModelPath = parameterNode.GetParameter("HeartModelPath")
-        self.HeartTracePath = parameterNode.GetParameter("HeartTracePath")
         self.CalModelPath = parameterNode.GetParameter("CalModelPath")
-        self.CalTracePath = parameterNode.GetParameter("CalTracePath")
         self.ServerURL = parameterNode.GetParameter("URL")
 
         # Get IJKToRAS Matrix
@@ -648,7 +632,7 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
             # CLI Tests Start
             # OutputVolume = []
             # self.logic.CLITest(VolumeArray, self.LocalProcessing, ServerURL, Partial, HeartModelPath,
-            #                    HeartTracePath, OutputVolume)
+            #                    OutputVolume)
             # OutputVolume = self._parameterNode.GetParameter("outputVolume")
             # print(OutputVolume)
             # CLI Tests End
@@ -661,15 +645,15 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
             if self.SegAndCrop and not self.Local:
 
                 self.Coordinates = self.SegmentAndCrop(VolumeArray, self.Local,
-                                                       self.ServerURL, self.HeartModelPath, self.HeartTracePath)
+                                                       self.ServerURL, self.HeartModelPath)
                 self.SegAndCropDone = True
 
             elif self.HeartSegNode or self.CroppingEnabled:
                 self.Segmentation, self.SegmentationTime = self.Segment(VolumeArray, self.Local,
                                                                         self.ServerURL, self.Partial, True,
-                                                                        self.HeartModelPath, self.HeartTracePath)
+                                                                        self.HeartModelPath)
                 self.HeartSegDone = True
-                self.Signals.progress.emit('Segmentation completed in {0:.2f} seconds'.format(self.SegmentationTime))
+                logging.info('Segmentation completed in {0:.2f} seconds'.format(self.SegmentationTime))
 
             if not self.Partial and self.HeartSegNode:
                 self.CreateSegmentationNode(self.Segmentation, "Heart", VolumeIJKToRAS, self.HeartSeg3D)
@@ -702,10 +686,9 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
             traceback.print_exc()
 
         self.SetDefaultClassVariables()
-        self.Signals.finished.emit()
 
     def CLITest(self, inputVolume, LocalProcessing=True, ProcessingURL="http://localhost:5000", Partial=True,
-                ModelPath=None, TracePath=None, outputVolume=None):
+                ModelPath=None, outputVolume=None):
 
         import time
         startTime = time.time()
@@ -723,7 +706,6 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
             'ProcessingURL': ProcessingURL,
             'Partial': Partial,
             'ModelPath': ModelPath,
-            'TracePath': TracePath,
             'outputVolume': outputVolume
         }
         cliNode = slicer.cli.run(slicer.modules.segmentationfrommodel, None, cliParams, wait_for_completion=True)
@@ -735,7 +717,7 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
         logging.info('Processing completed in {0:.2f} seconds'.format(stopTime - startTime))
 
     def SegmentAndCrop(self, inputVolume, Local=True, ProcessingURL="http://localhost:5000",
-                       ModelPath=None, TracePath=None):
+                       ModelPath=None):
 
         # TODO: Receive Routes From Caller
         if inputVolume is None:
@@ -758,7 +740,7 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
             logging.info(f"Received Cropping Coordinates From Online Server")
         else:
             from Models.Segmentation.Inference import Infer
-            model = Infer(trace_path=TracePath, model_path=ModelPath)
+            model = Infer(model_path=ModelPath, model_input=(112, 112, 112))
             AxSeg = model.predict(np.array(RawSliceArrays[0]))
             SagSeg = model.predict(np.array(RawSliceArrays[1]))
             CorSeg = model.predict(np.array(RawSliceArrays[2]))
@@ -779,13 +761,13 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
         return Coordinates
 
     def Segment(self, inputVolume, LocalProcessing=True, ProcessingURL="http://localhost:5000", Partial=True,
-                ReturnTime=True, ModelPath=None, TracePath=None):
+                ReturnTime=True, ModelPath=None):
         # TODO: Receive Routes From Caller
         if inputVolume is None:
             raise ValueError("Input volume is invalid")
 
-        if ModelPath is None or TracePath is None:
-            raise ValueError("Model or Trace Path Are Incorrect")
+        if ModelPath is None:
+            raise ValueError("Model Path Is Incorrect")
 
         # Get Segmentation Start Time
         SegmentStart = time.time()
@@ -816,7 +798,7 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
             else:
                 # Load Model
                 from Models.Segmentation.Inference import Infer
-                model = Infer(trace_path=TracePath, model_path=ModelPath)
+                model = Infer(model_path=ModelPath, model_input=(112, 112, 112))
                 # Loop over 3 slices in each View and apply heart segmentation
                 for i in range(3):
                     for slice in RawSliceArrays[i]:
@@ -840,7 +822,7 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
 
             else:
                 from Models.Segmentation.Inference import Infer
-                model = Infer(trace_path=TracePath, model_path=ModelPath, axis=-1, slices=1, shape=512)
+                model = Infer(model_path=ModelPath, model_input=(112, 112, 112))
 
                 for i in range(VolumeShape[0]):
                     # Calculate Slice Time
@@ -865,15 +847,23 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
 
     def CheckDependencies(self):
 
-        # Install PyTorch if Not Detected
-        Torch = importlib.util.find_spec("torch")
+        # Install Dependencies if Not Detected
+        Scikit = importlib.util.find_spec("scikit-image")
+        TensorFlow = importlib.util.find_spec("tensorflow")
 
-        if Torch is None:
-            logging.info('Installing PyTorch')
-            pip_install("torch")
-            logging.info('PyTorch Installed')
+        if Scikit is None:
+            logging.info('Installing Scikit')
+            pip_install("scikit-image")
+            logging.info('Scikit Installed')
         else:
-            logging.info('PyTorch Found')
+            logging.info('Scikit Found')
+
+        if TensorFlow is None:
+            logging.info('Installing TensorFlow')
+            pip_install("tensorflow")
+            logging.info('TensorFlow Installed')
+        else:
+            logging.info('TensorFlow Found')
 
     def CreateSegmentationNode(self, Segmentation, Name=None, VolumeIJKToRAS=None, HeartSegVis=False):
         """
