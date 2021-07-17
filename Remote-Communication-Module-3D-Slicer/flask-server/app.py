@@ -138,25 +138,34 @@ def GetSlicesSegmentation(Slices, Shift):
 
 
 def GetVolumeSegmentation(Volume, ModelPath):
-    Segmentation = []
     Times = []
     # Load Model
     model = Infer(model_path=ModelPath, model_input=(112, 112, 112))
 
     Start = time.time()
 
-    # Loop Over Axial Slices
-    for i in range(Volume.shape[0]):
-        # Calculate Slice Time
-        SliceStart = time.time()
+    # Calculate Slice Time
+    SliceStart = time.time()
 
-        # Segment Heart in Slice
-        res = model.predict(Volume[i, :, :])
-        Segmentation.append(res)
-        SliceEnd = time.time()
-        SliceTime = (SliceEnd - SliceStart)
-        print("Segmented Slice Number {} in {:.2f}".format(i, SliceTime))
-        Times.append(SliceTime)
+    Segmentation = model.predict(Volume)
+
+    SliceEnd = time.time()
+    SliceTime = (SliceEnd - SliceStart)
+    print("Segmented The Volume in {:.2f}".format(SliceTime))
+
+    logging.info(f"Segmentation Computed Locally")
+    # # Loop Over Axial Slices
+    # for i in range(Volume.shape[0]):
+    #     # Calculate Slice Time
+    #     SliceStart = time.time()
+    #
+    #     # Segment Heart in Slice
+    #     res = model.predict(Volume[i, :, :])
+    #     Segmentation.append(res)
+    #     SliceEnd = time.time()
+    #     SliceTime = (SliceEnd - SliceStart)
+    #     print("Segmented Slice Number {} in {:.2f}".format(i, SliceTime))
+    #     Times.append(SliceTime)
 
     End = time.time()
     print('Segmentation completed in {0:.2f} seconds'.format(End - Start))

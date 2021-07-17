@@ -801,9 +801,8 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
                 model = Infer(model_path=ModelPath, model_input=(112, 112, 112))
                 # Loop over 3 slices in each View and apply heart segmentation
                 for i in range(3):
-                    for slice in RawSliceArrays[i]:
-                        SegSlice = model.predict(np.array(slice))
-                        SegmentedSlices[i].append(SegSlice)
+                    SegSlice = model.predict(np.array(RawSliceArrays[i]))
+                    SegmentedSlices[i].append(SegSlice)
 
                 logging.info(f"Segmentation Computed Locally")
 
@@ -823,17 +822,15 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
             else:
                 from Models.Segmentation.Inference import Infer
                 model = Infer(model_path=ModelPath, model_input=(112, 112, 112))
+                # Calculate Slice Time
+                SliceStart = time.time()
 
-                for i in range(VolumeShape[0]):
-                    # Calculate Slice Time
-                    SliceStart = time.time()
+                SegmentedSlices = model.predict(VolumeArray)
 
-                    # Segment Heart in Slice
-                    res = model.predict(VolumeArray[i, :, :])
-                    SegmentedSlices.append(res)
-                    SliceEnd = time.time()
-                    SliceTime = (SliceEnd - SliceStart)
-                    print("Segmented Slice Number {} in {:.2f}".format(i, SliceTime))
+                SliceEnd = time.time()
+                SliceTime = (SliceEnd - SliceStart)
+                print("Segmented The Volume in {:.2f}".format(SliceTime))
+
                 logging.info(f"Segmentation Computed Locally")
 
         # Calculate Segmentation Time
