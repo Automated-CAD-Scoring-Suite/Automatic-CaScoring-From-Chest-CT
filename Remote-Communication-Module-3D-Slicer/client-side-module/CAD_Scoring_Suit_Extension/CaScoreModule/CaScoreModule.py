@@ -467,7 +467,7 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             except ConnectionError:
                 print('Couldn\'t Connect To The Server')
                 slicer.util.errorDisplay("Couldn't Connect To The Server")
-                raise RuntimeError("Couldn't Connect To The Server")
+                raise ValueError("Couldn't Connect To The Server")
 
         try:
 
@@ -490,8 +490,8 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             # Compute output
             if SegAndCrop and not self.LocalProcessing:
 
-                Coordinates = self.logic.SegAndCrop(VolumeArray, self.LocalProcessing,
-                                                    ServerURL, HeartModelPath, HeartTracePath)
+                self.Coordinates = self.logic.SegmentAndCrop(VolumeArray, self.LocalProcessing,
+                                                             ServerURL, HeartModelPath, HeartTracePath)
                 self.SegAndCropDone = True
 
             elif HeartSegNode or CroppingEnabled:
@@ -558,6 +558,23 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
     Called when the logic class is instantiated. Can be used for initializing member variables.
     """
         ScriptedLoadableModuleLogic.__init__(self)
+        self.Local = None
+        self.Partial = None
+        self.HeartSegNode = None
+        self.HeartSeg3D = None
+        self.CalSegNode = None
+        self.CalSeg3D = None
+        self.CroppingEnabled = None
+        self.SegAndCrop = None
+        self.HeartModelPath = None
+        self.HeartTracePath = None
+        self.CalModelPath = None
+        self.CalTracePath = None
+        self.ServerURL = None
+        self.SegAndCropDone = None
+        self.HeartSegDone = None
+        self.HeartSegNodeDone = None
+        self.CoordinatesCalculated = None
 
     def setDefaultParameters(self, parameterNode):
         """
@@ -639,8 +656,8 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
         stopTime = time.time()
         logging.info('Processing completed in {0:.2f} seconds'.format(stopTime - startTime))
 
-    def SegAndCrop(self, inputVolume, LocalProcessing=True, ProcessingURL="http://localhost:5000",
-                   ModelPath=None, TracePath=None):
+    def SegmentAndCrop(self, inputVolume, LocalProcessing=True, ProcessingURL="http://localhost:5000",
+                       ModelPath=None, TracePath=None):
 
         # TODO: Receive Routes From Caller
         if inputVolume is None:
@@ -702,7 +719,7 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
 
         # Segment 3 Slicers From Each View
         if Partial:
-
+            SegmentedSlices = [[], [], []]
             RawSliceArrays, files, ShiftValues = self.GetSampleSlicesFromVolume(VolumeArray=VolumeArray,
                                                                                 Local=LocalProcessing)
 
@@ -712,19 +729,21 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
                 Response = BytesIO(SliceSendReq.content)
                 Response.seek(0)
                 Data = np.load(Response)
-                SegmentedSlices = np.copy(Data["SegmentedSlices"])
+                SegmentedSlices[0] = np.copy(Data["Ax"])
+                SegmentedSlices[1] = np.copy(Data["Cor"])
+                SegmentedSlices[2] = np.copy(Data["Sag"])
                 Data.close()
                 logging.info(f"Segmented Slices Received From Server")
 
             else:
                 # Load Model
                 from Models.Segmentation.Inference import Infer
-                model = Infer(trace_path=TracePath, model_path=ModelPath, axis=-1, slices=1, shape=512)
-
+                model = Infer(trace_path=TracePath, model_path=ModelPath)
                 # Loop over 3 slices in each View and apply heart segmentation
                 for i in range(3):
                     for slice in RawSliceArrays[i]:
-                        SegmentedSlices.append(model.predict(np.array(slice)))
+                        SegSlice = model.predict(np.array(slice))
+                        SegmentedSlices[i].append(SegSlice)
 
                 logging.info(f"Segmentation Computed Locally")
 
@@ -788,8 +807,11 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
         if VolumeIJKToRAS:
             LabelMapVolumeNode.SetIJKToRASMatrix(VolumeIJKToRAS)
 
+        # Copy Segmentation
+        SegmentationNp = np.copy(Segmentation)
+
         # Update the LabelMapVolume from the given Segmentation array
-        slicer.util.updateVolumeFromArray(LabelMapVolumeNode, Segmentation)
+        slicer.util.updateVolumeFromArray(LabelMapVolumeNode, SegmentationNp)
 
         # Create a SegmentationNode
         SegNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLSegmentationNode", f'{Name}-Segmentation')

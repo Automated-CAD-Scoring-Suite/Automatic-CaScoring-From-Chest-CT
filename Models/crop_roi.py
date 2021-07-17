@@ -52,7 +52,7 @@ def get_coords(Slices: list):
     return [min(x1), max(x2), min(y1), max(y2)]
 
 
-def GetCoords(Segmentation, Partial):
+def GetCoords(Segmentation, Partial=True):
     """
     Get Cropping Directions In The 3 Planes For The Given Segmentation of Shape (Z, X, Y)
     """
@@ -68,21 +68,28 @@ def GetCoords(Segmentation, Partial):
         Y = Segmentation.shape[2] // 2
         AxCoor = [int(i) for i in get_coords(Segmentation[Z - 1:Z + 2, :, :])]
         SagCoor = [int(i) for i in get_coords(Segmentation[:, X - 1:X + 2, :])]
-        CorCoor = [int(i) for i in get_coords(Segmentation[:, :, Y - 1, Y + 2])]
+        CorCoor = [int(i) for i in get_coords(Segmentation[:, :, Y - 1: Y + 2])]
         CoordinatesList = [AxCoor, SagCoor, CorCoor]
 
     # Coordinates = [[Xmin, Xmax, Ymin, Ymax],[Zmin,Zmax, Ymin, Ymax],[Zmin, Zmax, Xmin,Xmax]]
 
     # Start Cropping
     # Determine Correct Cropping Coordinates
+    x1 = np.minimum(CoordinatesList[0][0], CoordinatesList[2][2], dtype='int')
+    x2 = np.maximum(CoordinatesList[0][1], CoordinatesList[2][3], dtype='int')
+    y1 = np.minimum(CoordinatesList[0][2], CoordinatesList[1][2], dtype='int')
+    y2 = np.maximum(CoordinatesList[0][3], CoordinatesList[1][3], dtype='int')
+    z1 = np.minimum(CoordinatesList[1][0], CoordinatesList[2][0], dtype='int')
+    z2 = np.maximum(CoordinatesList[1][1], CoordinatesList[2][1], dtype='int')
 
-    x1 = np.minimum(CoordinatesList[0][0], CoordinatesList[2][0])
-    x2 = np.maximum(CoordinatesList[0][1], CoordinatesList[2][1])
-    y1 = np.minimum(CoordinatesList[0][2], CoordinatesList[1][0])
-    y2 = np.maximum(CoordinatesList[0][3], CoordinatesList[1][1])
-    z1 = np.minimum(CoordinatesList[1][2], CoordinatesList[2][2])
-    z2 = np.maximum(CoordinatesList[1][3], CoordinatesList[2][3])
+    # x1 = np.minimum(CoordinatesList[0][0], CoordinatesList[2][0])
+    # x2 = np.maximum(CoordinatesList[0][1], CoordinatesList[2][1])
+    # y1 = np.minimum(CoordinatesList[0][2], CoordinatesList[1][0])
+    # y2 = np.maximum(CoordinatesList[0][3], CoordinatesList[1][1])
+    # z1 = np.minimum(CoordinatesList[1][2], CoordinatesList[2][2])
+    # z2 = np.maximum(CoordinatesList[1][3], CoordinatesList[2][3])
 
-    Coordinates = [z1, z2, x1, x2, y1, y2]
+    Coordinates32 = [z1, z2, x1, x2, y1, y2]
+    Coordinates = [int(i) for i in Coordinates32]
 
     return Coordinates

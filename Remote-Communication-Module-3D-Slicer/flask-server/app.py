@@ -3,6 +3,7 @@ import os
 import sys
 import time
 from io import BytesIO
+import matplotlib.pyplot as plt
 
 import numpy as np
 from PIL import Image
@@ -12,7 +13,7 @@ CurrentDir = os.path.dirname(os.path.realpath(__file__))
 ParentDir = os.path.dirname(CurrentDir)
 RepoRoot = os.path.dirname(ParentDir)
 sys.path.append(RepoRoot)
-from Models.crop_roi import get_coords
+from Models.crop_roi import get_coords, GetCoords
 from Models.Segmentation.Inference import Infer
 
 HeartTracePath = RepoRoot + "/Models/Segmentation/model_arch.pth"
@@ -47,23 +48,18 @@ def calculate_caScore():
 @app.route('/crop', methods=['POST'])
 def GetCropCoordinates():
     if request.method == 'POST':
-
         # Get Slices Data & Shift Values from the request
         slices = request.files
         shift = request.form
 
-        if slices:
-            # Get Slices Segmentation
-            SegmentedSlices = GetSlicesSegmentation(slices, shift)
+        # Get Slices Segmentation
+        SegmentedSlices = GetSlicesSegmentation(slices, shift)
 
-            # Get Coordinates For Each View
-            AxCoor = [int(i) for i in get_coords(SegmentedSlices[0])]
-            SagCoor = [int(i) for i in get_coords(SegmentedSlices[1])]
-            CorCoor = [int(i) for i in get_coords(SegmentedSlices[2])]
-            Coor = [AxCoor, SagCoor, CorCoor]
+        # Coordinates = GetCoords(SegmentedSlices, True)
+        Coordinates = GetCoords(SegmentedSlices)
 
-            # Send Coordinates
-            return jsonify({"Coor": Coor})
+        # Send Coordinates
+        return jsonify({"Coor": Coordinates})
     return 400
 
 
@@ -80,7 +76,7 @@ def SegmentSlices():
 
             # Compress For Sending
             CompressedArray = BytesIO()
-            np.savez_compressed(CompressedArray, SegmentedSlices=SegmentedSlices)
+            np.savez_compressed(CompressedArray, Ax=SegmentedSlices[0], Cor=SegmentedSlices[1], Sag=SegmentedSlices[2])
             CompressedArray.seek(0)
 
             # Send Segmented Slices
@@ -91,7 +87,6 @@ def SegmentSlices():
 @app.route('/segment/volume', methods=['POST'])
 def SegmentVolume():
     if request.method == 'POST':
-
         # Get Compressed Volume
         VolumeCompressed = request.files["Volume"]
 
@@ -121,20 +116,24 @@ def GetSlicesSegmentation(Slices, Shift):
     AxSlices = []
     SagSlices = []
     CorSlices = []
+    SegmentedSlices = [[], [], []]
+    model = Infer(trace_path=HeartTracePath, model_path=HeartModelPath,
+                  axis=-1, slices=1)
     for SliceName in Names:
         Slice = Image.open(Slices[SliceName])
         SliceArray = np.array(Slice, dtype="int16")
         SliceArray += int(Shift[SliceName])
-        model = Infer(trace_path=HeartTracePath, model_path=HeartModelPath,
-                      axis=-1, slices=1, shape=512)
         res = model.predict(SliceArray)
+        # plt.imshow(SliceArray, cmap='gray')
+        # plt.show()
+        # plt.imshow(res, cmap='gray')
+        # plt.show()
         if "Ax" in SliceName:
-            AxSlices.append(res)
+            SegmentedSlices[0].append(res)
         elif "Sag" in SliceName:
-            SagSlices.append(res)
+            SegmentedSlices[1].append(res)
         elif "Cor" in SliceName:
-            CorSlices.append(res)
-    SegmentedSlices = [AxSlices, SagSlices, CorSlices]
+            SegmentedSlices[2].append(res)
     return SegmentedSlices
 
 
