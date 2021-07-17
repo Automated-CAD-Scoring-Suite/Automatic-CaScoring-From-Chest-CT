@@ -8,9 +8,13 @@ from Unet.unet import UNet
 import callbacks as cb
 from functions import dice_coef_loss, dice_coef
 from Generator import NiftyGen, NiftyAugmentor
+import nibabel as nib
+from skimage.transform import resize
+import numpy as np
 
 # Script Variables
 Testing = False
+Deployment = False
 training = 'Data/Training/'
 model_path = 'Model_Weights/'
 validation = 'Data/Validation/'
@@ -49,8 +53,10 @@ optimizer = tf.keras.optimizers.Adam(lr)
 aug = NiftyAugmentor([-10, 10, 0], [0.95, 1, 1.1], [0, 1])
 
 # Dataset Loader, NIFTY Loader
-gen = NiftyGen(training, augmenter=aug, mode=mode, output_shape=output_shape, down_factor=down_factor, save=False)
-gen_val = NiftyGen(validation, augmenter=None, mode=mode, output_shape=output_shape, down_factor=down_factor)
+gen = NiftyGen(training, augmenter=aug, mode=mode, output_shape=output_shape, down_factor=down_factor, save=False,
+               shuffle=False)
+gen_val = NiftyGen(validation, augmenter=None, mode=mode, output_shape=output_shape, down_factor=down_factor,
+                   shuffle=False)
 
 # MODEL INSTANTIATION
 uNet3D = UNet("conv3D", up_sample="upSample3D", transpose=None, pool="max3D")
@@ -90,8 +96,65 @@ if not Testing:
 
 # TRAINING
 if Testing:
-    # TODO: Check Sanity of this part
+    import cv2
+    def range_scale(img) -> np.ndarray:
+        """
+        Scale Given Image Array using HF range
+        :param img: Input 3d Array
+        :return: Scaled Array
+        """
+        src = np.copy(img)
+        min_bound = -1024.0
+        max_bound = 1354.0
+        src = (src - min_bound) / (max_bound - min_bound)
+        src[src > 1] = 1.
+        src[src < 0] = 0.
+        return src
+
     # Load Last Saved Model
     model.load_weights(os.path.join(model_path, f'{model.name}_checkpoint.h5'))
 
+    # Load Test Image
+    Image_nii = nib.load('./Data/Validation/ct_train_1019/imaging.nii.gz')
+    Segmented_nii = nib.load('./Data/Validation/ct_train_1019/seg_norm.nii.gz')
+
+    Image = Image_nii.get_fdata()
+    Segmented = Segmented_nii.get_fdata()
+
+    Data_shape = Image.shape
+    print(f"Data Shape , {Data_shape}")
+
+    # Reshape Both Tensors
+    Image = resize(Image, output_shape)
+
+    Image = np.expand_dims(Image, 0)
+    Image = np.expand_dims(Image, -1)
+
+    # Range Scale
+    Image = range_scale(Image)
+
     # Predict Using loaded Parameters
+    pred = model.predict(Image)
+
+    Image = np.squeeze(Image, 0)
+    Image = np.squeeze(Image, -1)
+
+    pred = np.squeeze(pred, 0)
+    pred = np.squeeze(pred, -1)
+    print(pred.shape)
+    pred[pred < 0.9] = 0.0
+    pred[pred >= 0.9] = 1.0
+
+    print(np.unique(pred, return_counts=True))
+    cv2.imwrite('test_pred.png', pred[:, 90, :] * 255)
+    cv2.imwrite('test_img.png', Image[:, 90, :] * 255)
+
+    img_nii_test = nib.Nifti1Image(Image, Image_nii.affine, Image_nii.header)
+    seg_nii_test = nib.Nifti1Image(pred, Segmented_nii.affine, Segmented_nii.header)
+    nib.save(seg_nii_test, './test_pred.nii.gz')
+    nib.save(img_nii_test, './test_Image.nii.gz')
+
+if Deployment:
+    # Load Model Weights
+    model.load_weights(os.path.join(model_path, f'{model.name}_checkpoint.h5'))
+
