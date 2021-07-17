@@ -11,10 +11,11 @@ from Generator import NiftyGen, NiftyAugmentor
 import nibabel as nib
 from skimage.transform import resize
 import numpy as np
+import SimpleITK as sITK
 
 # Script Variables
 Testing = True
-Deployment = True
+Deployment = False
 training = 'Data/Training/'
 weights_path = 'Model_Weights/'
 models_path = './Models_Saved/'
@@ -98,6 +99,7 @@ if not Testing:
 # Testing Model
 if Testing:
     import cv2
+    from skimage.transform import rotate
 
     def range_scale(img) -> np.ndarray:
         """
@@ -117,17 +119,26 @@ if Testing:
     model.load_weights(os.path.join(weights_path, f'{model.name}_checkpoint.h5'))
 
     # Load Test Image
-    Image_nii = nib.load('./Data/Validation/ct_train_1019/imaging.nii.gz')
-    Segmented_nii = nib.load('./Data/Validation/ct_train_1019/seg_norm.nii.gz')
+    # Image_nii = nib.load('./Data/Validation/ct_train_1019/imaging.nii.gz')
+    # Segmented_nii = nib.load('./Data/Validation/ct_train_1019/seg_norm.nii.gz')
 
-    Image = Image_nii.get_fdata()
-    Segmented = Segmented_nii.get_fdata()
+    # Image = Image_nii.get_fdata()
+    # Segmented = Segmented_nii.get_fdata()
 
-    Data_shape = Image.shape
-    print(f"Data Shape , {Data_shape}")
+    # Load Patient's Scans
+    sITK_image = sITK.ReadImage('./Test/trv1p1ctai.mhd')
+    Image = sITK.GetArrayFromImage(sITK_image)
+
+    # Test rotating Input
+    # Image = rotate(Image, 90)
+
+    Image = np.moveaxis(Image, 0, -1)
+
+    print(Image.min(), Image.max())
 
     # Reshape Both Tensors
-    Image = resize(Image, output_shape)
+    Image = resize(Image, output_shape=output_shape, preserve_range=True)
+    print(f"Data Shape , {Image.shape}")
 
     Image = np.expand_dims(Image, 0)
     Image = np.expand_dims(Image, -1)
@@ -135,7 +146,8 @@ if Testing:
     # Range Scale
     Image = range_scale(Image)
 
-    # Predict Using loaded Parameters
+
+    # # Predict Using loaded Parameters
     pred = model.predict(Image)
 
     Image = np.squeeze(Image, 0)
@@ -143,7 +155,8 @@ if Testing:
 
     pred = np.squeeze(pred, 0)
     pred = np.squeeze(pred, -1)
-    print(pred.shape)
+
+    # print(pred.shape)
     pred[pred < 0.9] = 0.0
     pred[pred >= 0.9] = 1.0
 
@@ -151,10 +164,16 @@ if Testing:
     cv2.imwrite('test_pred.png', pred[:, 90, :] * 255)
     cv2.imwrite('test_img.png', Image[:, 90, :] * 255)
 
-    img_nii_test = nib.Nifti1Image(Image, Image_nii.affine, Image_nii.header)
-    seg_nii_test = nib.Nifti1Image(pred, Segmented_nii.affine, Segmented_nii.header)
-    nib.save(seg_nii_test, './test_pred.nii.gz')
-    nib.save(img_nii_test, './test_Image.nii.gz')
+    pred_mhd = sITK.GetImageFromArray(pred)
+
+    writer = sITK.ImageFileWriter()
+    writer.SetFileName('test_pred_mhd_rot.mhd')
+    writer.Execute(pred_mhd)
+
+    # img_nii_test = nib.Nifti1Image(Image, Image_nii.affine, Image_nii.header)
+    # seg_nii_test = nib.Nifti1Image(pred, Segmented_nii.affine, Segmented_nii.header)
+    # nib.save(seg_nii_test, './test_pred.nii.gz')
+    # nib.save(img_nii_test, './test_Image.nii.gz')
 
 if Deployment:
     # Compile Created Model
