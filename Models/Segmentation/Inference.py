@@ -104,11 +104,12 @@ if __name__ == '__main__':
 
     heart_localization = Infer(model_path='./Models_Saved/Heart_Localization/',
                                model_input=(112, 112, 112),
-                               axial_first=False)
+                               axial_first=True)
 
     # load Scans
     Image = nib.load('./Data/Validation/ct_train_1019/imaging.nii.gz').get_fdata()
     print(Image.shape)
+    Image = np.moveaxis(Image, -1, 0)
 
     # Predict using loaded model
     pred = heart_localization.predict(Image)
