@@ -16,8 +16,7 @@ sys.path.append(RepoRoot)
 from Models.crop_roi import get_coords, GetCoords
 from Models.Segmentation.Inference import Infer
 
-HeartTracePath = RepoRoot + "/Models/Segmentation/model_arch.pth"
-HeartModelPath = RepoRoot + "/Models/Segmentation/HarD-MSEG-best.pth"
+HeartModelPath = RepoRoot + "/Models/Segmentation/Models_Saved/Heart_Localization"
 
 app = Flask(__name__)
 
@@ -95,7 +94,7 @@ def SegmentVolume():
         VolumeArray = Data['Volume']
 
         # Get Segmentation
-        Segmentation = GetVolumeSegmentation(Volume=VolumeArray, ModelPath=HeartModelPath, TracePath=HeartTracePath)
+        Segmentation = GetVolumeSegmentation(Volume=VolumeArray, ModelPath=HeartModelPath)
 
         # Compress Segmentation Array
         CompressedArray = BytesIO()
@@ -117,32 +116,32 @@ def GetSlicesSegmentation(Slices, Shift):
     SagSlices = []
     CorSlices = []
     SegmentedSlices = [[], [], []]
-    model = Infer(trace_path=HeartTracePath, model_path=HeartModelPath,
-                  axis=-1, slices=1)
+    model = Infer(model_path=HeartModelPath, model_input=(112, 112, 112))
     for SliceName in Names:
         Slice = Image.open(Slices[SliceName])
         SliceArray = np.array(Slice, dtype="int16")
         SliceArray += int(Shift[SliceName])
-        res = model.predict(SliceArray)
         # plt.imshow(SliceArray, cmap='gray')
         # plt.show()
         # plt.imshow(res, cmap='gray')
         # plt.show()
         if "Ax" in SliceName:
-            SegmentedSlices[0].append(res)
+            AxSlices.append(SliceArray)
         elif "Sag" in SliceName:
-            SegmentedSlices[1].append(res)
+            SagSlices.append(SliceArray)
         elif "Cor" in SliceName:
-            SegmentedSlices[2].append(res)
+            CorSlices.append(SliceArray)
+    SegmentedSlices[0] = model.predict(np.array(AxSlices))
+    SegmentedSlices[1] = model.predict(np.array(SagSlices))
+    SegmentedSlices[2] = model.predict(np.array(CorSlices))
     return SegmentedSlices
 
 
-def GetVolumeSegmentation(Volume, ModelPath, TracePath):
+def GetVolumeSegmentation(Volume, ModelPath):
     Segmentation = []
     Times = []
     # Load Model
-    model = Infer(trace_path=TracePath, model_path=ModelPath,
-                  axis=-1, slices=1, shape=512)
+    model = Infer(model_path=ModelPath, model_input=(112, 112, 112))
 
     Start = time.time()
 
