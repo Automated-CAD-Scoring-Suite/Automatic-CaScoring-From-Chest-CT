@@ -1,5 +1,6 @@
 import logging
 import os
+import random
 import sys
 import time
 from io import BytesIO
@@ -295,9 +296,7 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # self.ui.invertOutputCheckBox.checked = (self._parameterNode.GetParameter("Invert") == "true")
 
         self.ui.HeartModelPath.currentPath = self._parameterNode.GetParameter("HeartModelPath")
-        self.ui.HeartTracePath.currentPath = self._parameterNode.GetParameter("HeartTracePath")
         self.ui.CalModelPath.currentPath = self._parameterNode.GetParameter("CalModelPath")
-        self.ui.CalTracePath.currentPath = self._parameterNode.GetParameter("CalTracePath")
 
         if self._parameterNode.GetParameter("CroppingEnabled"):
             self.ui.CroppingEnabled.checked = strtobool(self._parameterNode.GetParameter("CroppingEnabled"))
@@ -349,9 +348,7 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self._parameterNode.SetParameter("SegAndCrop", "true" if self.ui.SegAndCrop.checked else "false")
         self._parameterNode.SetParameter("Anonymize", "true" if self.ui.Anonymize.checked else "false")
         self._parameterNode.SetParameter("HeartModelPath", self.ui.HeartModelPath.currentPath)
-        self._parameterNode.SetParameter("HeartTracePath", self.ui.HeartTracePath.currentPath)
         self._parameterNode.SetParameter("CalModelPath", self.ui.CalModelPath.currentPath)
-        self._parameterNode.SetParameter("CalTracePath", self.ui.CalTracePath.currentPath)
 
         self._parameterNode.EndModify(wasModified)
 
@@ -419,12 +416,13 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         CurrentNode = slicer.mrmlScene.GetNodeByID(VolumeNodeID)
         slicer.util.setSliceViewerLayers(foreground=CurrentNode, fit=True)
 
+    def reportProgress(self, Progress):
+        logging.info(Progress)
+
     def onApplyButton(self):
         """
         Run processing when user clicks "Apply" button.
         """
-        startTime = time.time()
-        logging.info('Processing started')
 
         # Collapse Settings For Better Progress View
         self.ui.GeneralSettings.collapsed = True
@@ -434,6 +432,9 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # Enable & Expand Progress Box
         self.ui.Progress.setEnabled(True)
         self.ui.Progress.collapsed = False
+
+        # Disable Apply Button
+        self.ui.applyButton.setEnabled(False)
 
         # Update Parameters
         self.updateParameterNodeFromGUI()
@@ -447,84 +448,19 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         CroppingEnabled = bool(strtobool(self._parameterNode.GetParameter("CroppingEnabled")))
         SegAndCrop = bool(strtobool(self._parameterNode.GetParameter("SegAndCrop")))
         HeartModelPath = self._parameterNode.GetParameter("HeartModelPath")
-        HeartTracePath = self._parameterNode.GetParameter("HeartTracePath")
         CalModelPath = self._parameterNode.GetParameter("CalModelPath")
-        CalTracePath = self._parameterNode.GetParameter("CalTracePath")
         ServerURL = self._parameterNode.GetParameter("URL")
 
         # Get Input Volume
         InputVolumeNode = self.ui.inputSelector.currentNode()
 
-        # Get IJKToRAS Matrix
-        # Required to get some data from the volume (spacing, margin, etc.)
-        # This data is used after that to show the segmentation node after finished the processing
-        VolumeIJKToRAS = vtk.vtkMatrix4x4()
-        InputVolumeNode.GetIJKToRASMatrix(VolumeIJKToRAS)
-
-        if not self.LocalProcessing:
-            try:
-                request = requests.get(ServerURL)
-            except ConnectionError:
-                print('Couldn\'t Connect To The Server')
-                slicer.util.errorDisplay("Couldn't Connect To The Server")
-                raise ValueError("Couldn't Connect To The Server")
+        startTime = time.time()
+        logging.info('Processing started')
 
         try:
 
-            # Initialize Variables
-            self.Segmentation = []
-            self.SegmentationTime = 0
-            self.Coordinates = []
-            VolumeArray = np.array(slicer.util.arrayFromVolume(InputVolumeNode), copy=True)
-            # CLI Tests Start
-            # OutputVolume = []
-            # self.logic.CLITest(VolumeArray, self.LocalProcessing, ServerURL, Partial, HeartModelPath,
-            #                    HeartTracePath, OutputVolume)
-            # OutputVolume = self._parameterNode.GetParameter("outputVolume")
-            # print(OutputVolume)
-            # CLI Tests End
-            # Check For Dependencies & Install Missing Ones
-            if self.LocalProcessing:
-                self.logic.CheckDependencies()
-
-            # Compute output
-            if SegAndCrop and not self.LocalProcessing:
-
-                self.Coordinates = self.logic.SegmentAndCrop(VolumeArray, self.LocalProcessing,
-                                                             ServerURL, HeartModelPath, HeartTracePath)
-                self.SegAndCropDone = True
-
-            elif HeartSegNode or CroppingEnabled:
-                self.Segmentation, self.SegmentationTime = self.logic.Segment(VolumeArray, self.LocalProcessing,
-                                                                              ServerURL, Partial, True,
-                                                                              HeartModelPath, HeartTracePath)
-                self.HeartSegDone = True
-                logging.info('Segmentation completed in {0:.2f} seconds'.format(self.SegmentationTime))
-
-            if not Partial and HeartSegNode:
-                self.logic.CreateSegmentationNode(self.Segmentation, "Heart", VolumeIJKToRAS, HeartSeg3D)
-                self.HeartSegNodeDone = True
-
-            if CroppingEnabled and not SegAndCrop and self.HeartSegDone:
-                self.Coordinates = self.logic.GetCoordinates(self.Segmentation, Partial, 20)
-                self.CoordinatesCalculated = True
-
-            elif CroppingEnabled and SegAndCrop:
-                # Add margin to the segmentation output
-                self.logic.AddMargin(Volume=VolumeArray, ROICoordinates=self.Coordinates, Margin=20)
-                self.CoordinatesCalculated = True
-
-            if CroppingEnabled or SegAndCrop and self.CoordinatesCalculated:
-                logging.info(f"The Cropping Coordinates Are Z->{self.Coordinates[0]}:{self.Coordinates[1]}, "
-                             f"X->{self.Coordinates[2]}:{self.Coordinates[3]}, "
-                             f"Y->{self.Coordinates[4]}:{self.Coordinates[5]}")
-
-                NewVolume = self.logic.CropVolume(Volume=VolumeArray, Coordinates=self.Coordinates)
-                slicer.util.updateVolumeFromArray(InputVolumeNode, NewVolume)
-                logging.info(f"Cropped!")
-
-            # Recenter & Fit The Volume
-            self.RecenterVolume()
+            self.logic.StartOperations(InputVolumeNode, self._parameterNode)
+            self.ui.applyButton.setEnabled(True)
 
         except Exception as e:
             slicer.util.errorDisplay("Failed to compute results: " + str(e))
@@ -535,11 +471,16 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         logging.info('Processing completed in {0:.2f} seconds'.format(stopTime - startTime))
 
 
+class Signals(qt.QObject):
+    finished = qt.Signal()
+    progress = qt.Signal(str)
+
+
 #
 # CaScoreModuleLogic
 #
 
-class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
+class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
     """
     This class should implement all the actual
     computation done by your module.  The interface
@@ -549,9 +490,6 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
     Uses ScriptedLoadableModuleLogic base class, available at:
     https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
     """
-
-    finished = qt.Signal()
-    progress = qt.Signal(int)
 
     def __init__(self):
         """
@@ -567,14 +505,15 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
         self.CroppingEnabled = None
         self.SegAndCrop = None
         self.HeartModelPath = None
-        self.HeartTracePath = None
         self.CalModelPath = None
-        self.CalTracePath = None
         self.ServerURL = None
         self.SegAndCropDone = None
         self.HeartSegDone = None
         self.HeartSegNodeDone = None
         self.CoordinatesCalculated = None
+        self.Segmentation = None
+        self.SegmentationTime = None
+        self.Coordinates = None
 
     def setDefaultParameters(self, parameterNode):
         """
@@ -585,13 +524,9 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
         if not parameterNode.GetParameter("Local"):
             parameterNode.SetParameter("Local", "true")
         if not parameterNode.GetParameter("HeartModelPath"):
-            Path = RepoRoot + '/Models/Segmentation/HarD-MSEG-best.pth'
+            Path = RepoRoot + '/Models/Segmentation/Models_Saved/Heart_Localization'
             if os.path.exists(Path):
                 parameterNode.SetParameter("HeartModelPath", Path)
-        if not parameterNode.GetParameter("HeartTracePath"):
-            Path = RepoRoot + '/Models/Segmentation/model_arch.pth'
-            if os.path.exists(Path):
-                parameterNode.SetParameter("HeartTracePath", Path)
 
     def processOld(self, inputVolume, outputVolume, imageThreshold, invert=False, showResult=True):
         """
@@ -626,8 +561,134 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
         stopTime = time.time()
         logging.info('Processing completed in {0:.2f} seconds'.format(stopTime - startTime))
 
+    def SetDefaultClassVariables(self):
+        self.Local = None
+        self.Partial = None
+        self.HeartSegNode = None
+        self.HeartSeg3D = None
+        self.CalSegNode = None
+        self.CalSeg3D = None
+        self.CroppingEnabled = None
+        self.SegAndCrop = None
+        self.HeartModelPath = None
+        self.CalModelPath = None
+        self.ServerURL = None
+        self.SegAndCropDone = None
+        self.HeartSegDone = None
+        self.HeartSegNodeDone = None
+        self.CoordinatesCalculated = None
+        self.Segmentation = None
+        self.SegmentationTime = None
+        self.Coordinates = None
+
+    def SetParametersFromNode(self, InputVolumeNode, parameterNode):
+        self.InputVolumeNode = InputVolumeNode
+        self.parameterNode = parameterNode
+
+    def run(self):
+        print("Hi")
+        self.StartOperations(self.InputVolumeNode, self.parameterNode)
+
+    def StartOperations(self, InputVolumeNode, parameterNode):
+        # Extract All Parameters From The Parameter Node
+        self.SegAndCropDone = False
+        self.HeartSegDone = False
+        self.HeartSegNodeDone = False
+        self.CoordinatesCalculated = False
+        self.Local = bool(strtobool(parameterNode.GetParameter("Local")))
+        self.Partial = bool(strtobool(parameterNode.GetParameter("Partial")))
+        self.HeartSegNode = bool(strtobool(parameterNode.GetParameter("HeartSegNode")))
+        self.HeartSeg3D = bool(strtobool(parameterNode.GetParameter("HeartSeg3D")))
+        self.CalSegNode = bool(strtobool(parameterNode.GetParameter("CalSegNode")))
+        self.CalSeg3D = bool(strtobool(parameterNode.GetParameter("CalSeg3D")))
+        self.CroppingEnabled = bool(strtobool(parameterNode.GetParameter("CroppingEnabled")))
+        self.SegAndCrop = bool(strtobool(parameterNode.GetParameter("SegAndCrop")))
+        self.HeartModelPath = parameterNode.GetParameter("HeartModelPath")
+        self.CalModelPath = parameterNode.GetParameter("CalModelPath")
+        self.ServerURL = parameterNode.GetParameter("URL")
+
+        # Get IJKToRAS Matrix
+        # Required to get some data from the volume (spacing, margin, etc.)
+        # This data is used after that to show the segmentation node after finished the processing
+        VolumeIJKToRAS = vtk.vtkMatrix4x4()
+        InputVolumeNode.GetIJKToRASMatrix(VolumeIJKToRAS)
+
+        if not self.Local:
+            try:
+                request = requests.get(self.ServerURL)
+            except ConnectionError:
+                print('Couldn\'t Connect To The Server')
+                slicer.util.errorDisplay("Couldn't Connect To The Server")
+                raise ValueError("Couldn't Connect To The Server")
+
+        try:
+
+            # Initialize Variables
+            self.Segmentation = []
+            self.SegmentationTime = 0
+            self.Coordinates = []
+            VolumeArray = np.array(slicer.util.arrayFromVolume(InputVolumeNode), copy=True)
+
+            # CLI Tests Start
+            # OutputVolume = []
+            # self.logic.CLITest(VolumeArray, self.LocalProcessing, ServerURL, Partial, HeartModelPath,
+            #                    OutputVolume)
+            # OutputVolume = self._parameterNode.GetParameter("outputVolume")
+            # print(OutputVolume)
+            # CLI Tests End
+
+            # Check For Dependencies & Install Missing Ones
+            if self.Local:
+                self.CheckDependencies()
+
+            # Compute output
+            if self.SegAndCrop and not self.Local:
+
+                self.Coordinates = self.SegmentAndCrop(VolumeArray, self.Local,
+                                                       self.ServerURL, self.HeartModelPath)
+                self.SegAndCropDone = True
+
+            elif self.HeartSegNode or self.CroppingEnabled:
+                self.Segmentation, self.SegmentationTime = self.Segment(VolumeArray, self.Local,
+                                                                        self.ServerURL, self.Partial, True,
+                                                                        self.HeartModelPath)
+                self.HeartSegDone = True
+                logging.info('Segmentation completed in {0:.2f} seconds'.format(self.SegmentationTime))
+
+            if not self.Partial and self.HeartSegNode:
+                self.CreateSegmentationNode(self.Segmentation, "Heart", VolumeIJKToRAS, self.HeartSeg3D)
+                self.HeartSegNodeDone = True
+
+            if self.CroppingEnabled and not self.SegAndCrop and self.HeartSegDone:
+                self.Coordinates = self.GetCoordinates(self.Segmentation, self.Partial, 20)
+                self.CoordinatesCalculated = True
+
+            elif self.CroppingEnabled and self.SegAndCrop:
+                # Add margin to the segmentation output
+                self.Coordinates = self.AddMargin(Volume=VolumeArray, ROICoordinates=self.Coordinates, Margin=20)
+                self.CoordinatesCalculated = True
+
+            if self.CroppingEnabled or self.SegAndCrop and self.CoordinatesCalculated:
+                logging.info(f"The Cropping Coordinates Are Z->{self.Coordinates[0]}:{self.Coordinates[1]}, "
+                             f"X->{self.Coordinates[2]}:{self.Coordinates[3]}, "
+                             f"Y->{self.Coordinates[4]}:{self.Coordinates[5]}")
+
+                NewVolume = self.CropVolume(Volume=VolumeArray, Coordinates=self.Coordinates)
+                slicer.util.updateVolumeFromArray(InputVolumeNode, NewVolume)
+                logging.info(f"Cropped!")
+
+            # Recenter & Fit The Volume
+            # self.RecenterVolume()
+
+        except Exception as e:
+            slicer.util.errorDisplay("Failed to compute results: " + str(e))
+            import traceback
+            traceback.print_exc()
+
+        self.SetDefaultClassVariables()
+
     def CLITest(self, inputVolume, LocalProcessing=True, ProcessingURL="http://localhost:5000", Partial=True,
-                ModelPath=None, TracePath=None, outputVolume=None):
+                ModelPath=None, outputVolume=None):
 
         import time
         startTime = time.time()
@@ -645,7 +706,6 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
             'ProcessingURL': ProcessingURL,
             'Partial': Partial,
             'ModelPath': ModelPath,
-            'TracePath': TracePath,
             'outputVolume': outputVolume
         }
         cliNode = slicer.cli.run(slicer.modules.segmentationfrommodel, None, cliParams, wait_for_completion=True)
@@ -656,8 +716,8 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
         stopTime = time.time()
         logging.info('Processing completed in {0:.2f} seconds'.format(stopTime - startTime))
 
-    def SegmentAndCrop(self, inputVolume, LocalProcessing=True, ProcessingURL="http://localhost:5000",
-                       ModelPath=None, TracePath=None):
+    def SegmentAndCrop(self, inputVolume, Local=True, ProcessingURL="http://localhost:5000",
+                       ModelPath=None):
 
         # TODO: Receive Routes From Caller
         if inputVolume is None:
@@ -671,16 +731,16 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
 
         # Prepare Slices
         RawSliceArrays, files, ShiftValues = self.GetSampleSlicesFromVolume(VolumeArray=VolumeArray,
-                                                                            Local=LocalProcessing)
+                                                                            Local=Local)
 
         # Send to Server For Processing
-        if not LocalProcessing:
+        if not Local:
             SliceSendReq = requests.post(ProcessingURL + "/crop", files=files, data=ShiftValues)
             Coordinates = SliceSendReq.json()["Coor"]
             logging.info(f"Received Cropping Coordinates From Online Server")
         else:
             from Models.Segmentation.Inference import Infer
-            model = Infer(trace_path=TracePath, model_path=ModelPath)
+            model = Infer(model_path=ModelPath, model_input=(112, 112, 112))
             AxSeg = model.predict(np.array(RawSliceArrays[0]))
             SagSeg = model.predict(np.array(RawSliceArrays[1]))
             CorSeg = model.predict(np.array(RawSliceArrays[2]))
@@ -701,13 +761,13 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
         return Coordinates
 
     def Segment(self, inputVolume, LocalProcessing=True, ProcessingURL="http://localhost:5000", Partial=True,
-                ReturnTime=True, ModelPath=None, TracePath=None):
+                ReturnTime=True, ModelPath=None):
         # TODO: Receive Routes From Caller
         if inputVolume is None:
             raise ValueError("Input volume is invalid")
 
-        if ModelPath is None or TracePath is None:
-            raise ValueError("Model or Trace Path Are Incorrect")
+        if ModelPath is None:
+            raise ValueError("Model Path Is Incorrect")
 
         # Get Segmentation Start Time
         SegmentStart = time.time()
@@ -738,7 +798,7 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
             else:
                 # Load Model
                 from Models.Segmentation.Inference import Infer
-                model = Infer(trace_path=TracePath, model_path=ModelPath)
+                model = Infer(model_path=ModelPath, model_input=(112, 112, 112))
                 # Loop over 3 slices in each View and apply heart segmentation
                 for i in range(3):
                     for slice in RawSliceArrays[i]:
@@ -762,13 +822,18 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
 
             else:
                 from Models.Segmentation.Inference import Infer
-                model = Infer(trace_path=TracePath, model_path=ModelPath, axis=-1, slices=1, shape=512)
+                model = Infer(model_path=ModelPath, model_input=(112, 112, 112))
 
                 for i in range(VolumeShape[0]):
+                    # Calculate Slice Time
+                    SliceStart = time.time()
+
                     # Segment Heart in Slice
                     res = model.predict(VolumeArray[i, :, :])
                     SegmentedSlices.append(res)
-
+                    SliceEnd = time.time()
+                    SliceTime = (SliceEnd - SliceStart)
+                    print("Segmented Slice Number {} in {:.2f}".format(i, SliceTime))
                 logging.info(f"Segmentation Computed Locally")
 
         # Calculate Segmentation Time
@@ -782,15 +847,23 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic, qt.QObject):
 
     def CheckDependencies(self):
 
-        # Install PyTorch if Not Detected
-        Torch = importlib.util.find_spec("torch")
+        # Install Dependencies if Not Detected
+        Scikit = importlib.util.find_spec("scikit-image")
+        TensorFlow = importlib.util.find_spec("tensorflow")
 
-        if Torch is None:
-            logging.info('Installing PyTorch')
-            pip_install("torch")
-            logging.info('PyTorch Installed')
+        if Scikit is None:
+            logging.info('Installing Scikit')
+            pip_install("scikit-image")
+            logging.info('Scikit Installed')
         else:
-            logging.info('PyTorch Found')
+            logging.info('Scikit Found')
+
+        if TensorFlow is None:
+            logging.info('Installing TensorFlow')
+            pip_install("tensorflow")
+            logging.info('TensorFlow Installed')
+        else:
+            logging.info('TensorFlow Found')
 
     def CreateSegmentationNode(self, Segmentation, Name=None, VolumeIJKToRAS=None, HeartSegVis=False):
         """

@@ -258,7 +258,7 @@
            <bool>false</bool>
           </property>
           <property name="filters">
-           <set>ctkPathLineEdit::Files|ctkPathLineEdit::NoDot|ctkPathLineEdit::NoDotDot|ctkPathLineEdit::Readable</set>
+           <set>ctkPathLineEdit::Dirs|ctkPathLineEdit::NoDot|ctkPathLineEdit::NoDotDot|ctkPathLineEdit::Readable</set>
           </property>
           <property name="options">
            <set>ctkPathLineEdit::DontUseNativeDialog|ctkPathLineEdit::ReadOnly</set>
@@ -274,31 +274,7 @@
        </layout>
       </item>
       <item>
-       <layout class="QHBoxLayout" name="horizontalLayout_2">
-        <item>
-         <widget class="QLabel" name="label_3">
-          <property name="text">
-           <string>Trace  </string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="ctkPathLineEdit" name="HeartTracePath">
-          <property name="acceptDrops">
-           <bool>true</bool>
-          </property>
-          <property name="filters">
-           <set>ctkPathLineEdit::Files|ctkPathLineEdit::NoDot|ctkPathLineEdit::NoDotDot|ctkPathLineEdit::Readable</set>
-          </property>
-          <property name="options">
-           <set>ctkPathLineEdit::DontUseNativeDialog|ctkPathLineEdit::ReadOnly</set>
-          </property>
-          <property name="sizeAdjustPolicy">
-           <enum>ctkPathLineEdit::AdjustToMinimumContentsLength</enum>
-          </property>
-         </widget>
-        </item>
-       </layout>
+       <layout class="QHBoxLayout" name="horizontalLayout_2"/>
       </item>
       <item>
        <widget class="Line" name="line_2">
@@ -332,7 +308,7 @@
            <bool>true</bool>
           </property>
           <property name="filters">
-           <set>ctkPathLineEdit::Files|ctkPathLineEdit::NoDot|ctkPathLineEdit::NoDotDot|ctkPathLineEdit::Readable</set>
+           <set>ctkPathLineEdit::Dirs|ctkPathLineEdit::NoDot|ctkPathLineEdit::NoDotDot|ctkPathLineEdit::Readable</set>
           </property>
           <property name="options">
            <set>ctkPathLineEdit::DontUseNativeDialog|ctkPathLineEdit::ReadOnly</set>
@@ -348,34 +324,7 @@
        </layout>
       </item>
       <item>
-       <layout class="QHBoxLayout" name="horizontalLayout_5">
-        <item>
-         <widget class="QLabel" name="label_5">
-          <property name="text">
-           <string>Trace</string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="ctkPathLineEdit" name="CalTracePath">
-          <property name="acceptDrops">
-           <bool>true</bool>
-          </property>
-          <property name="label">
-           <string>Trace</string>
-          </property>
-          <property name="filters">
-           <set>ctkPathLineEdit::Files|ctkPathLineEdit::NoDot|ctkPathLineEdit::NoDotDot|ctkPathLineEdit::Readable</set>
-          </property>
-          <property name="options">
-           <set>ctkPathLineEdit::DontUseNativeDialog|ctkPathLineEdit::ReadOnly</set>
-          </property>
-          <property name="sizeAdjustPolicy">
-           <enum>ctkPathLineEdit::AdjustToMinimumContentsLength</enum>
-          </property>
-         </widget>
-        </item>
-       </layout>
+       <layout class="QHBoxLayout" name="horizontalLayout_5"/>
       </item>
      </layout>
     </widget>
