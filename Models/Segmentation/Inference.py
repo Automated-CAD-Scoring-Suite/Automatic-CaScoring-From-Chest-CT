@@ -52,7 +52,7 @@ class Infer:
         self.data_shape = src.shape
 
         # Resizing Data to Fit Model.Input,
-        src = resize(src, output_shape=self.model_input)
+        src = resize(src, output_shape=self.model_input, preserve_range=True)
 
         # Convert input shape to TF Convention, This is a 3D model
         # Which needs about 5 Axis (Batches, L, W, D, Channels)
