@@ -152,7 +152,7 @@ class NiftyGen(tf.keras.utils.Sequence):
         # Down Sample the image with the selected Factor
         if self.down_factor:
             # src = self.zoom3D(src, self.down_factor)
-            src = resize(src, output_shape=self.output_shape)
+            src = resize(src, output_shape=self.output_shape, preserve_range=True)
 
         # Shuffle the Images in the Z direction
         if self.shuffle:
