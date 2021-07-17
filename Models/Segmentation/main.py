@@ -13,10 +13,11 @@ from skimage.transform import resize
 import numpy as np
 
 # Script Variables
-Testing = False
-Deployment = False
+Testing = True
+Deployment = True
 training = 'Data/Training/'
-model_path = 'Model_Weights/'
+weights_path = 'Model_Weights/'
+models_path = './Models_Saved/'
 validation = 'Data/Validation/'
 log_dir = './logs/'
 
@@ -72,10 +73,10 @@ print(model.summary())
 # TRAINING
 callbacks = [
     cb.GarbageCollect(),
-    tf.keras.callbacks.ModelCheckpoint(filepath=f'{model_path}/{model.name}_checkpoint.h5', save_freq='epoch'),
+    tf.keras.callbacks.ModelCheckpoint(filepath=f'{weights_path}/{model.name}_checkpoint.h5', save_freq='epoch'),
     tf.keras.callbacks.EarlyStopping(monitor='loss', min_delta=0.001, patience=20),
     tf.keras.callbacks.ReduceLROnPlateau(),
-    tf.keras.callbacks.CSVLogger(f'{model.name}_logs2.csv'),
+    tf.keras.callbacks.CSVLogger(f'{model.name}_logs3.csv'),
     cb.DisplayCallback()
 ]
 
@@ -86,17 +87,18 @@ if not Testing:
 
     with tf.device("/" + gpus[0].name[10:]):
         # Load Saved Checkpoint if Exits for the Same model.
-        if os.path.exists(os.path.join(model_path, f'{model.name}_checkpoint.h5')):
+        if os.path.exists(os.path.join(weights_path, f'{model.name}_checkpoint.h5')):
             print(f"Loading {model.name} CHECKPOINT !!!")
-            model.load_weights(os.path.join(model_path, f'{model.name}_checkpoint.h5'))
+            model.load_weights(os.path.join(weights_path, f'{model.name}_checkpoint.h5'))
 
         # Start Training
         model.fit(gen, epochs=100, callbacks=callbacks, validation_data=gen_val)
-    model.save(f'{model_path}/Model_{model.name}.h5')
+    model.save(f'{weights_path}/Model_{model.name}')
 
-# TRAINING
+# Testing Model
 if Testing:
     import cv2
+
     def range_scale(img) -> np.ndarray:
         """
         Scale Given Image Array using HF range
@@ -112,7 +114,7 @@ if Testing:
         return src
 
     # Load Last Saved Model
-    model.load_weights(os.path.join(model_path, f'{model.name}_checkpoint.h5'))
+    model.load_weights(os.path.join(weights_path, f'{model.name}_checkpoint.h5'))
 
     # Load Test Image
     Image_nii = nib.load('./Data/Validation/ct_train_1019/imaging.nii.gz')
@@ -155,6 +157,14 @@ if Testing:
     nib.save(img_nii_test, './test_Image.nii.gz')
 
 if Deployment:
-    # Load Model Weights
-    model.load_weights(os.path.join(model_path, f'{model.name}_checkpoint.h5'))
+    # Compile Created Model
+    # model.compile(optimizer=optimizer, loss=dice_coef_loss, metrics=['accuracy', dice_coef])
 
+    print(f"Saving Model {model.name} ... ")
+
+    # Load Model Weights
+    model.load_weights(os.path.join(weights_path, f'{model.name}_checkpoint.h5'))
+
+    # Save the Model Architecture and Weights
+    model.save(os.path.join(models_path, 'Heart_Localization'))
+    print("Done !! ")
