@@ -11,6 +11,8 @@ from scipy.ndimage import zoom, rotate
 from skimage.exposure import adjust_gamma
 from skimage.transform import resize
 import random
+import SimpleITK as sITK
+
 
 
 # Augmenter Class
@@ -71,7 +73,8 @@ class NiftyGen(tf.keras.utils.Sequence):
     """Keras Sequence for loading Nifty image formats"""
 
     def __init__(self, images_path: str, mode: str = '2D', augmenter=None,
-                 scale: bool = True, shuffle: bool = True, down_factor=None, output_shape=None, channels: int = 1, save: bool = False):
+                 scale: bool = True, shuffle: bool = True, down_factor=None, output_shape=None,
+                 channels: int = 1, save: bool = False):
         self.path = images_path
         self.channels = channels
         self.down_factor = down_factor
@@ -180,8 +183,13 @@ class NiftyGen(tf.keras.utils.Sequence):
             src = np.expand_dims(src, -1)
         return src
 
-    def __getitem__(self, index: int) -> tuple:
-        # Load Segmentation and Data in the Record
+    def LoadData(self, index):
+        """
+        Data Loader Function
+        :param index:
+        :return:
+        """
+
         image_path = os.path.join(self.path, self.records[index])
         img = nib.load(os.path.join(image_path, 'imaging.nii.gz')).get_fdata().astype('float32')
         seg = nib.load(os.path.join(image_path, 'seg_norm.nii.gz')).get_fdata().astype('float32')
@@ -190,18 +198,45 @@ class NiftyGen(tf.keras.utils.Sequence):
         assert (img.shape == seg.shape), \
             f'Images and Segmentation are with different Dimensions,{seg.shape} {img.shape}'
 
+        return img, seg
+
+    def SaveBatch(self, img, seg, index):
+        test_img = np.squeeze(img, -1)
+        test_seg = np.squeeze(seg, -1)
+        if self.modeIs3D:
+            test_img = np.squeeze(img, 0)
+            test_seg = np.squeeze(seg, 0)
+            test_img = np.squeeze(test_img, -1)
+            test_seg = np.squeeze(test_seg, -1)
+
+        fig, ax = plt.subplots(1, 2, figsize=(20, 20))
+        for IMAGE in range(0, test_img.shape[-1], 50):
+            ax[0].imshow(test_img[IMAGE, :, :], "gray")
+            ax[1].imshow(test_seg[IMAGE, :, :], "gray")
+
+            if not os.path.isdir(self.target):
+                os.makedirs(self.target)
+            plt.savefig(os.path.join(self.target, f"IMG_BATCH_{index}_{IMAGE}"))
+
+    def __getitem__(self, index: int) -> tuple:
+        # Load Segmentation and Data in the Record
+        img, seg = self.LoadData(index)
+
         # Process the Scan and Segmentation Arrays
         img = self.ProcessImage(img)
         seg = self.ProcessImage(seg, segmentation=True)
-        s = img.shape[-1]
+
         # Concatenate Both Sources for a faster
+        s = img.shape[-1]
         src = np.concatenate([img, seg], -1)
+
         # Reshape Both Arrays
         src = self.ReshapeImage(src)
 
         if self.modeIs3D:
             img = src[:, :, :, :s, :]
             seg = src[:, :, :, s:, :]
+
         if self.modeIs2D:
             img = src[:s, :, :, :]
             seg = src[s:, :, :, :]
@@ -212,22 +247,7 @@ class NiftyGen(tf.keras.utils.Sequence):
 
         # Saving Created Batches at Batches Directory
         if self.save_batch:
-            test_img = np.squeeze(img, -1)
-            test_seg = np.squeeze(seg, -1)
-            if self.modeIs3D:
-                test_img = np.squeeze(img, 0)
-                test_seg = np.squeeze(seg, 0)
-                test_img = np.squeeze(test_img, -1)
-                test_seg = np.squeeze(test_seg, -1)
-
-            fig, ax = plt.subplots(1, 2, figsize=(20, 20))
-            for IMAGE in range(0, test_img.shape[-1], 50):
-                ax[0].imshow(test_img[IMAGE, :, :], "gray")
-                ax[1].imshow(test_seg[IMAGE, :, :], "gray")
-
-                if not os.path.isdir(self.target):
-                    os.makedirs(self.target)
-                plt.savefig(os.path.join(self.target, f"IMG_BATCH_{index}_{IMAGE}"))
+            self.SaveBatch(img, seg, index)
         return img, seg
 
     def on_epoch_end(self):
@@ -235,3 +255,39 @@ class NiftyGen(tf.keras.utils.Sequence):
         Randomly shuffle Images selected
         """
         random.shuffle(self.records)
+
+
+class CACGen(NiftyGen):
+    """
+     CAC Generator is a TF's Generator that Load Calcification Data
+     and Generate Divided Cubes from Localized Heart
+
+    """
+    def LoadData(self, index):
+        # Scans Paths
+        image_path = os.path.join(self.path, self.records[index])
+
+        # Load Patient's Scans
+        sITK_image = sITK.ReadImage(os.path.join(image_path, 'imaging.mhd'))
+        image_array = sITK.GetArrayFromImage(sITK_image)
+
+        # Load Reference Standard Segmentation
+        sITK_ref = sITK.ReadImage(os.path.join(image_path, 'seg_norm.mhd'))
+        ref_array = sITK.GetArrayFromImage(sITK_ref)
+
+
+
+if __name__ == '__main__':
+    training = 'Data/Training/'
+    mode = '3D'
+    output_shape = (112, 112, 112)
+    input_shape = (112, 112, 112, 1)
+    down_factor = True
+
+    aug = NiftyAugmentor([-10, 10, 0], [0.95, 1, 1.1], [0, 1])
+    gen = NiftyGen(training, augmenter=aug, mode=mode, output_shape=output_shape, down_factor=down_factor, save=False,
+                   shuffle=False)
+
+    for i in gen:
+        print(i[0].shape)
+        print(i[1].shape)
