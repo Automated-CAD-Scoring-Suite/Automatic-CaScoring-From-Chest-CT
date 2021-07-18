@@ -16,6 +16,8 @@ import qt
 from PIL import Image
 from slicer.ScriptedLoadableModule import *
 from slicer.util import VTKObservationMixin, pip_install
+from Processes import Process, ProcessesLogic
+import pickle
 
 # Processing Packages
 
@@ -439,18 +441,6 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # Update Parameters
         self.updateParameterNodeFromGUI()
 
-        # Get Parameters
-        Partial = bool(strtobool(self._parameterNode.GetParameter("Partial")))
-        HeartSegNode = bool(strtobool(self._parameterNode.GetParameter("HeartSegNode")))
-        HeartSeg3D = bool(strtobool(self._parameterNode.GetParameter("HeartSeg3D")))
-        CalSegNode = bool(strtobool(self._parameterNode.GetParameter("CalSegNode")))
-        CalSeg3D = bool(strtobool(self._parameterNode.GetParameter("CalSeg3D")))
-        CroppingEnabled = bool(strtobool(self._parameterNode.GetParameter("CroppingEnabled")))
-        SegAndCrop = bool(strtobool(self._parameterNode.GetParameter("SegAndCrop")))
-        HeartModelPath = self._parameterNode.GetParameter("HeartModelPath")
-        CalModelPath = self._parameterNode.GetParameter("CalModelPath")
-        ServerURL = self._parameterNode.GetParameter("URL")
-
         # Get Input Volume
         InputVolumeNode = self.ui.inputSelector.currentNode()
 
@@ -479,6 +469,25 @@ class Signals(qt.QObject):
 #
 # CaScoreModuleLogic
 #
+class OfflinePredictionProcess(Process):
+
+    def __init__(self, scriptPath, volume, model_path):
+        Process.__init__(self, scriptPath)
+        self.volume = volume  # Numpy array, to use as input for the model.
+        self.model_path = model_path  # Path to the TF model you'd like to load, as TF Models are not picklable.
+        self.name = f"OfflinePrediction-{os.path.basename(model_path)}"
+        self.output = None
+
+    def prepareProcessInput(self):
+        InputData = {'volume': self.volume, 'model_path': self.model_path}
+        with open('data.pkl', 'wb') as f:
+            pickle.dump(InputData, f)
+
+    def useProcessOutput(self, processOutput):
+        output = pickle.loads(processOutput)
+        os.remove('data.pkl')
+        self.output = output
+
 
 class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
     """
@@ -514,6 +523,10 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
         self.Segmentation = None
         self.SegmentationTime = None
         self.Coordinates = None
+        self.VolumeIJKToRAS = None
+        self.VolumeArray = None
+        self.InputVolumeNode = None
+        self.DependenciesChecked = None
 
     def setDefaultParameters(self, parameterNode):
         """
@@ -577,9 +590,13 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
         self.HeartSegDone = None
         self.HeartSegNodeDone = None
         self.CoordinatesCalculated = None
+        self.CroppingDone = None
         self.Segmentation = None
         self.SegmentationTime = None
         self.Coordinates = None
+        self.VolumeIJKToRAS = None
+        self.VolumeArray = None
+        self.InputVolumeNode = None
 
     def SetParametersFromNode(self, InputVolumeNode, parameterNode):
         self.InputVolumeNode = InputVolumeNode
@@ -595,6 +612,7 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
         self.HeartSegDone = False
         self.HeartSegNodeDone = False
         self.CoordinatesCalculated = False
+        self.CroppingDone = False
         self.Local = bool(strtobool(parameterNode.GetParameter("Local")))
         self.Partial = bool(strtobool(parameterNode.GetParameter("Partial")))
         self.HeartSegNode = bool(strtobool(parameterNode.GetParameter("HeartSegNode")))
@@ -607,12 +625,22 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
         self.CalModelPath = parameterNode.GetParameter("CalModelPath")
         self.ServerURL = parameterNode.GetParameter("URL")
 
+        # Store Volume Node
+        self.InputVolumeNode = InputVolumeNode
+
         # Get IJKToRAS Matrix
         # Required to get some data from the volume (spacing, margin, etc.)
         # This data is used after that to show the segmentation node after finished the processing
-        VolumeIJKToRAS = vtk.vtkMatrix4x4()
-        InputVolumeNode.GetIJKToRASMatrix(VolumeIJKToRAS)
+        self.VolumeIJKToRAS = vtk.vtkMatrix4x4()
+        InputVolumeNode.GetIJKToRASMatrix(self.VolumeIJKToRAS)
 
+        # Initialize Variables
+        self.Segmentation = []
+        self.SegmentationTime = 0
+        self.Coordinates = []
+        self.VolumeArray = np.array(slicer.util.arrayFromVolume(InputVolumeNode), copy=True)
+
+        # Online Prerequisites Check
         if not self.Local:
             try:
                 request = requests.get(self.ServerURL)
@@ -622,12 +650,6 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
                 raise ValueError("Couldn't Connect To The Server")
 
         try:
-
-            # Initialize Variables
-            self.Segmentation = []
-            self.SegmentationTime = 0
-            self.Coordinates = []
-            VolumeArray = np.array(slicer.util.arrayFromVolume(InputVolumeNode), copy=True)
 
             # CLI Tests Start
             # OutputVolume = []
@@ -640,42 +662,51 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
             # Check For Dependencies & Install Missing Ones
             if self.Local:
                 self.CheckDependencies()
+                self.DependenciesChecked = True
 
             # Compute output
-            if self.SegAndCrop and not self.Local:
+            if self.SegAndCrop and not self.Local and not self.SegAndCropDone:
 
-                self.Coordinates = self.SegmentAndCrop(VolumeArray, self.Local,
+                self.Coordinates = self.SegmentAndCrop(self.VolumeArray, self.Local,
                                                        self.ServerURL, self.HeartModelPath)
                 self.SegAndCropDone = True
 
-            elif self.HeartSegNode or self.CroppingEnabled:
-                self.Segmentation, self.SegmentationTime = self.Segment(VolumeArray, self.Local,
+            elif self.HeartSegNode or self.CroppingEnabled and not self.HeartSegDone and \
+                    (self.DependenciesChecked == self.Local):
+                self.Segmentation, self.SegmentationTime = self.Segment(self.VolumeArray, self.Local,
                                                                         self.ServerURL, self.Partial, True,
                                                                         self.HeartModelPath)
                 self.HeartSegDone = True
                 logging.info('Segmentation completed in {0:.2f} seconds'.format(self.SegmentationTime))
 
-            if not self.Partial and self.HeartSegNode:
-                self.CreateSegmentationNode(self.Segmentation, "Heart", VolumeIJKToRAS, self.HeartSeg3D)
-                self.HeartSegNodeDone = True
+            if self.CroppingEnabled and not self.SegAndCrop and self.HeartSegDone \
+                    and not self.CoordinatesCalculated and self.HeartSegDone:
 
-            if self.CroppingEnabled and not self.SegAndCrop and self.HeartSegDone:
                 self.Coordinates = self.GetCoordinates(self.Segmentation, self.Partial, 20)
                 self.CoordinatesCalculated = True
 
-            elif self.CroppingEnabled and self.SegAndCrop:
+            elif self.CroppingEnabled and self.SegAndCrop and not self.CoordinatesCalculated and self.SegAndCropDone:
                 # Add margin to the segmentation output
-                self.Coordinates = self.AddMargin(Volume=VolumeArray, ROICoordinates=self.Coordinates, Margin=20)
+                self.Coordinates = self.AddMargin(Volume=self.VolumeArray, ROICoordinates=self.Coordinates, Margin=20)
                 self.CoordinatesCalculated = True
 
-            if self.CroppingEnabled or self.SegAndCrop and self.CoordinatesCalculated:
+            if self.CroppingEnabled or self.SegAndCrop and self.CoordinatesCalculated and not self.CroppingDone:
                 logging.info(f"The Cropping Coordinates Are Z->{self.Coordinates[0]}:{self.Coordinates[1]}, "
                              f"X->{self.Coordinates[2]}:{self.Coordinates[3]}, "
                              f"Y->{self.Coordinates[4]}:{self.Coordinates[5]}")
 
-                NewVolume = self.CropVolume(Volume=VolumeArray, Coordinates=self.Coordinates)
+                NewVolume = self.CropVolume(Volume=self.VolumeArray, Coordinates=self.Coordinates)
                 slicer.util.updateVolumeFromArray(InputVolumeNode, NewVolume)
                 logging.info(f"Cropped!")
+                self.CroppingDone = True
+
+            if not self.Partial and self.HeartSegNode and not self.HeartSegNodeDone \
+                    and self.HeartSegDone and (self.CoordinatesCalculated == self.CroppingEnabled):
+
+                if self.CroppingEnabled:
+                    self.Segmentation = self.CropVolume(Volume=self.Segmentation, Coordinates=self.Coordinates)
+                self.CreateSegmentationNode(self.Segmentation, "Heart", self.VolumeIJKToRAS, self.HeartSeg3D)
+                self.HeartSegNodeDone = True
 
             # Recenter & Fit The Volume
             # self.RecenterVolume()
