@@ -469,24 +469,34 @@ class Signals(qt.QObject):
 #
 # CaScoreModuleLogic
 #
-class OfflinePredictionProcess(Process):
+class HeartSegmentationProcess(Process):
 
-    def __init__(self, scriptPath, volume, model_path):
+    def __init__(self, scriptPath, VolumeArray, Local, ServerURL, Partial, ModelPath):
         Process.__init__(self, scriptPath)
-        self.volume = volume  # Numpy array, to use as input for the model.
-        self.model_path = model_path  # Path to the TF model you'd like to load, as TF Models are not picklable.
-        self.name = f"OfflinePrediction-{os.path.basename(model_path)}"
-        self.output = None
+        self.VolumeArray = VolumeArray  # Numpy array, to use as input for the model.
+        self.ModelPath = ModelPath  # Path to the TF model you'd like to load, as TF Models are not picklable.
+        self.Local = Local
+        self.ServerURL = ServerURL
+        self.Partial = Partial
+        self.Name = f"OfflinePrediction-{os.path.basename(ModelPath)}"
+        self.Output = None
+        self.Segmentation = None
+        self.SegmentationTime = None
 
     def prepareProcessInput(self):
-        InputData = {'volume': self.volume, 'model_path': self.model_path}
+        InputData = {'VolumeArray': self.VolumeArray,
+                     'ModelPath': self.ModelPath,
+                     'Local': self.Local,
+                     'ServerURL': self.ServerURL,
+                     'Partial': self.Partial,
+                     }
         with open('data.pkl', 'wb') as f:
             pickle.dump(InputData, f)
 
     def useProcessOutput(self, processOutput):
         output = pickle.loads(processOutput)
         os.remove('data.pkl')
-        self.output = output
+        self.Output = output
 
 
 class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
@@ -505,6 +515,8 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
     Called when the logic class is instantiated. Can be used for initializing member variables.
     """
         ScriptedLoadableModuleLogic.__init__(self)
+        self.FinishedCallback = None
+        self.UpdateCallback = None
         self.Local = None
         self.Partial = None
         self.HeartSegNode = None
@@ -527,6 +539,8 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
         self.VolumeArray = None
         self.InputVolumeNode = None
         self.DependenciesChecked = None
+        self.CroppingDone = None
+        self.HeartSegmentationProcess = None
 
     def setDefaultParameters(self, parameterNode):
         """
@@ -597,6 +611,10 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
         self.VolumeIJKToRAS = None
         self.VolumeArray = None
         self.InputVolumeNode = None
+        self.FinishedCallback = None
+        self.UpdateCallback = None
+        self.CroppingDone = None
+        self.HeartSegmentationProcess = None
 
     def SetParametersFromNode(self, InputVolumeNode, parameterNode):
         self.InputVolumeNode = InputVolumeNode
@@ -604,9 +622,9 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
 
     def run(self):
         print("Hi")
-        self.StartOperations(self.InputVolumeNode, self.parameterNode)
+        self.StartOperations(self.InputVolumeNode, self.parameterNode, self.UpdateCallback, self.FinishedCallback)
 
-    def StartOperations(self, InputVolumeNode, parameterNode):
+    def StartOperations(self, InputVolumeNode, parameterNode, UpdateCallback=None, FinishedCallback=None):
         # Extract All Parameters From The Parameter Node
         self.SegAndCropDone = False
         self.HeartSegDone = False
@@ -649,8 +667,11 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
                 slicer.util.errorDisplay("Couldn't Connect To The Server")
                 raise ValueError("Couldn't Connect To The Server")
 
-        try:
+        self.RunOperations()
 
+    def RunOperations(self):
+
+        try:
             # CLI Tests Start
             # OutputVolume = []
             # self.logic.CLITest(VolumeArray, self.LocalProcessing, ServerURL, Partial, HeartModelPath,
@@ -676,11 +697,8 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
                 self.Segmentation, self.SegmentationTime = self.Segment(self.VolumeArray, self.Local,
                                                                         self.ServerURL, self.Partial, True,
                                                                         self.HeartModelPath)
-                self.HeartSegDone = True
-                logging.info('Segmentation completed in {0:.2f} seconds'.format(self.SegmentationTime))
 
-            if self.CroppingEnabled and not self.SegAndCrop and self.HeartSegDone \
-                    and not self.CoordinatesCalculated and self.HeartSegDone:
+            if self.CroppingEnabled and not self.SegAndCrop and self.HeartSegDone and not self.CoordinatesCalculated:
 
                 self.Coordinates = self.GetCoordinates(self.Segmentation, self.Partial, 20)
                 self.CoordinatesCalculated = True
@@ -696,7 +714,7 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
                              f"Y->{self.Coordinates[4]}:{self.Coordinates[5]}")
 
                 NewVolume = self.CropVolume(Volume=self.VolumeArray, Coordinates=self.Coordinates)
-                slicer.util.updateVolumeFromArray(InputVolumeNode, NewVolume)
+                slicer.util.updateVolumeFromArray(self.InputVolumeNode, NewVolume)
                 logging.info(f"Cropped!")
                 self.CroppingDone = True
 
@@ -715,8 +733,9 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
             slicer.util.errorDisplay("Failed to compute results: " + str(e))
             import traceback
             traceback.print_exc()
-
-        self.SetDefaultClassVariables()
+        if (self.SegAndCrop == self.SegAndCropDone) and (self.HeartSegNode == self.HeartSegNodeDone) \
+                and (self.CroppingEnabled == self.CroppingDone):
+            self.SetDefaultClassVariables()
 
     def CLITest(self, inputVolume, LocalProcessing=True, ProcessingURL="http://localhost:5000", Partial=True,
                 ModelPath=None, outputVolume=None):
@@ -793,6 +812,7 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
 
     def Segment(self, inputVolume, LocalProcessing=True, ProcessingURL="http://localhost:5000", Partial=True,
                 ReturnTime=True, ModelPath=None):
+
         # TODO: Receive Routes From Caller
         if inputVolume is None:
             raise ValueError("Input volume is invalid")
@@ -873,8 +893,28 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
         else:
             return SegmentedSlices
 
-    def CheckDependencies(self):
+    def SegmentWrapper(self):
+        scriptFolder = slicer.modules.cascoremodule.path.replace('CaScoreModule.py', '/Resources/ProcessScripts/')
+        scriptPath = os.path.join(scriptFolder, "Segmentation.slicer.py")
+        self.HeartSegmentationProcess = HeartSegmentationProcess(scriptPath, self.VolumeArray, self.Local,
+                                                                 self.ServerURL, self.Partial,
+                                                                 self.HeartModelPath)
+        logic = ProcessesLogic(completedCallback=lambda: self.SegmentationCompleted())
+        logic.addProcess(self.HeartSegmentationProcess)
+        logic.run()
+        logging.info('Segmentation Process Started')
 
+    def SegmentationCompleted(self):
+        logging.info('Segmentation completed in {0:.2f} seconds'.format(self.SegmentationTime))
+        self.Segmentation = self.HeartSegmentationProcess.output["Segmentation"]
+        self.SegmentationTime = self.HeartSegmentationProcess.output["SegmentationTime"]
+        self.HeartSegDone = True
+        self.RunOperations()
+
+    def CheckDependencies(self):
+        """
+        Installs Missing Pip Packages
+        """
         # Install Dependencies if Not Detected
         Scikit = importlib.util.find_spec("scikit-image")
         TensorFlow = importlib.util.find_spec("tensorflow")
