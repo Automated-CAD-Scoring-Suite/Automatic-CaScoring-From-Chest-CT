@@ -7,19 +7,22 @@ import tensorflow as tf
 from Unet.unet import UNet
 import callbacks as cb
 from functions import dice_coef_loss, dice_coef
-from Generator import NiftyGen, NiftyAugmentor
+from Generator import NiftyGen, NiftyAugmentor, CACGen
 import nibabel as nib
 from skimage.transform import resize
 import numpy as np
 import SimpleITK as sITK
 
 # Script Variables
-Testing = True
+Testing = False
 Deployment = False
 training = 'Data/Training/'
+validation = 'Data/Validation/'
+CA_training = './CaData/Training/'
+CA_validation = './CaData/Validation/'
+
 weights_path = 'Model_Weights/'
 models_path = './Models_Saved/'
-validation = 'Data/Validation/'
 log_dir = './logs/'
 
 # TF Configurations
@@ -40,15 +43,15 @@ mode = '3D'
 down_factor = True
 output_shape = (112, 112, 112)
 input_shape = (112, 112, 112, 1)
-levels = 5
+levels = 4
 kernel_size = (3, 3, 3)
 convolutions = 2
 initial_features = 32
 
-batch_norm = False
+batch_norm = True
 drop_out = None
 activation = 'relu'
-lr = 0.0001
+lr = 0.001
 optimizer = tf.keras.optimizers.Adam(lr)
 ####################################################################################################################
 # Augmentation Parameters
@@ -59,12 +62,16 @@ gen = NiftyGen(training, augmenter=aug, mode=mode, output_shape=output_shape, do
                shuffle=False)
 gen_val = NiftyGen(validation, augmenter=None, mode=mode, output_shape=output_shape, down_factor=down_factor,
                    shuffle=False)
+# Ca Generators
+ca_gen = CACGen(CA_training, augmenter=aug, mode=mode, output_shape=output_shape, down_factor=down_factor, save=False,
+                shuffle=False)
+ca_val = CACGen(CA_validation, augmenter=None, mode=mode, output_shape=output_shape, down_factor=down_factor,
+                  shuffle=False)
 
 # MODEL INSTANTIATION
 uNet3D = UNet("conv3D", up_sample="upSample3D", transpose=None, pool="max3D")
 model = uNet3D(levels=levels, convolutions=convolutions, input_shape=input_shape, kernel_size=kernel_size,
                activation=activation, batch_norm=batch_norm, drop_out=drop_out, initial_features=initial_features)
-
 # UNet2D = UNet(transpose='transpose2D')
 # model = UNet2D(levels, convolutions, input_shape, kernel_size, activation=activation,
 #                batch_norm=batch_norm, drop_out=drop_out, initial_features=initial_features)
@@ -77,7 +84,7 @@ callbacks = [
     tf.keras.callbacks.ModelCheckpoint(filepath=f'{weights_path}/{model.name}_checkpoint.h5', save_freq='epoch'),
     tf.keras.callbacks.EarlyStopping(monitor='loss', min_delta=0.001, patience=20),
     tf.keras.callbacks.ReduceLROnPlateau(),
-    tf.keras.callbacks.CSVLogger(f'{model.name}_logs3.csv'),
+    tf.keras.callbacks.CSVLogger(f'{model.name}_logs_CAC.csv'),
     cb.DisplayCallback()
 ]
 
@@ -85,6 +92,7 @@ if not Testing:
     print("Training on ", gpus[0].name)
     # Training
     model.compile(optimizer=optimizer, loss=dice_coef_loss, metrics=['accuracy', dice_coef])
+    print(f"Training {model.name}")
 
     with tf.device("/" + gpus[0].name[10:]):
         # Load Saved Checkpoint if Exits for the Same model.
@@ -93,7 +101,7 @@ if not Testing:
             model.load_weights(os.path.join(weights_path, f'{model.name}_checkpoint.h5'))
 
         # Start Training
-        model.fit(gen, epochs=100, callbacks=callbacks, validation_data=gen_val)
+        model.fit(ca_gen, epochs=1000, callbacks=callbacks, validation_data=ca_val)
     model.save(f'{weights_path}/Model_{model.name}')
 
 # Testing Model
@@ -145,7 +153,6 @@ if Testing:
 
     # Range Scale
     Image = range_scale(Image)
-
 
     # # Predict Using loaded Parameters
     pred = model.predict(Image)
