@@ -332,10 +332,6 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         wasModified = self._parameterNode.StartModify()  # Modify all properties in a single batch
 
         self._parameterNode.SetNodeReferenceID("InputVolume", self.ui.inputSelector.currentNodeID)
-        # self._parameterNode.SetNodeReferenceID("OutputVolume", self.ui.outputSelector.currentNodeID)
-        # self._parameterNode.SetParameter("Threshold", str(self.ui.imageThresholdSliderWidget.value))
-        # self._parameterNode.SetParameter("Invert", "true" if self.ui.invertOutputCheckBox.checked else "false")
-        # self._parameterNode.SetNodeReferenceID("OutputVolumeInverse", self.ui.invertedOutputSelector.currentNodeID)
         self._parameterNode.SetParameter("URL",
                                          self.ui.URLLineEdit.text if self.ui.URLLineEdit.isEnabled()
                                          else "http://localhost:5000")
