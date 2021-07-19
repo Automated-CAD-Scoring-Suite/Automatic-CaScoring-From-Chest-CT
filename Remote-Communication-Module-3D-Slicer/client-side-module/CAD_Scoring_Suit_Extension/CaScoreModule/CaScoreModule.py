@@ -442,19 +442,19 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         # Disable Apply Button
         self.ui.applyButton.setDisabled(True)
-        self.ui.applyButton.setEnabled(False)
 
     def onApplyButton(self):
         """
         Run processing when user clicks "Apply" button.
         """
-        self.ProcessingStarted()
-
         # Update Parameters
         self.updateParameterNodeFromGUI()
 
         # Get Input Volume
         InputVolumeNode = self.ui.inputSelector.currentNode()
+
+        # Update GUI
+        self.ProcessingStarted()
 
         self.startTime = time.time()
         logging.info('Processing started')
