@@ -698,17 +698,16 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
                 self.DependenciesChecked = True
 
             # Compute output
-            if self.SegAndCrop and not self.Local and not self.SegAndCropDone:
+            if not (self.HeartSegDone or self.SegAndCropDone):
+                if self.SegAndCrop and not self.Local and not self.SegAndCropDone:
 
-                self.Coordinates = self.SegmentAndCrop(self.VolumeArray, self.Local,
-                                                       self.ServerURL, self.HeartModelPath)
-                self.SegAndCropDone = True
+                    self.Coordinates = self.SegmentAndCrop(self.VolumeArray, self.Local,
+                                                           self.ServerURL, self.HeartModelPath)
+                    self.SegAndCropDone = True
 
-            elif self.HeartSegNode or self.CroppingEnabled and not self.HeartSegDone and \
-                    (self.DependenciesChecked == self.Local):
-                self.Segmentation, self.SegmentationTime = self.Segment(self.VolumeArray, self.Local,
-                                                                        self.ServerURL, self.Partial, True,
-                                                                        self.HeartModelPath)
+                elif self.HeartSegNode or self.CroppingEnabled and not self.HeartSegDone and \
+                        (self.DependenciesChecked == self.Local):
+                    self.HeartSegmentWrapper()
 
             if self.CroppingEnabled and not self.SegAndCrop and self.HeartSegDone and not self.CoordinatesCalculated:
 
