@@ -421,11 +421,16 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     def reportProgress(self, Progress):
         logging.info(Progress)
 
-    def onApplyButton(self):
-        """
-        Run processing when user clicks "Apply" button.
-        """
+    def ProcessingCompleted(self):
+        self.ui.applyButton.setEnabled(True)
 
+        # Recenter & Fit The Volume
+        self.RecenterVolume()
+
+        stopTime = time.time()
+        logging.info('Processing completed in {0:.2f} seconds'.format(stopTime - self.startTime))
+
+    def ProcessingStarted(self):
         # Collapse Settings For Better Progress View
         self.ui.GeneralSettings.collapsed = True
         self.ui.LocalSettings.collapsed = True
@@ -436,7 +441,14 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.Progress.collapsed = False
 
         # Disable Apply Button
+        self.ui.applyButton.setDisabled(True)
         self.ui.applyButton.setEnabled(False)
+
+    def onApplyButton(self):
+        """
+        Run processing when user clicks "Apply" button.
+        """
+        self.ProcessingStarted()
 
         # Update Parameters
         self.updateParameterNodeFromGUI()
@@ -444,21 +456,18 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # Get Input Volume
         InputVolumeNode = self.ui.inputSelector.currentNode()
 
-        startTime = time.time()
+        self.startTime = time.time()
         logging.info('Processing started')
 
         try:
 
-            self.logic.StartOperations(InputVolumeNode, self._parameterNode)
-            self.ui.applyButton.setEnabled(True)
+            self.logic.StartOperations(InputVolumeNode, self._parameterNode, self.reportProgress,
+                                       self.ProcessingCompleted)
 
         except Exception as e:
             slicer.util.errorDisplay("Failed to compute results: " + str(e))
             import traceback
             traceback.print_exc()
-
-        stopTime = time.time()
-        logging.info('Processing completed in {0:.2f} seconds'.format(stopTime - startTime))
 
 
 class Signals(qt.QObject):
@@ -625,6 +634,7 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
         self.StartOperations(self.InputVolumeNode, self.parameterNode, self.UpdateCallback, self.FinishedCallback)
 
     def StartOperations(self, InputVolumeNode, parameterNode, UpdateCallback=None, FinishedCallback=None):
+
         # Extract All Parameters From The Parameter Node
         self.SegAndCropDone = False
         self.HeartSegDone = False
@@ -652,6 +662,8 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
         self.VolumeIJKToRAS = vtk.vtkMatrix4x4()
         InputVolumeNode.GetIJKToRASMatrix(self.VolumeIJKToRAS)
 
+        # Store Callbacks
+        self.FinishedCallback = FinishedCallback
         # Initialize Variables
         self.Segmentation = []
         self.SegmentationTime = 0
@@ -719,22 +731,21 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
                 self.CroppingDone = True
 
             if not self.Partial and self.HeartSegNode and not self.HeartSegNodeDone \
-                    and self.HeartSegDone and (self.CoordinatesCalculated == self.CroppingEnabled):
+                    and self.HeartSegDone and (self.CroppingDone == self.CroppingEnabled):
 
                 if self.CroppingEnabled:
                     self.Segmentation = self.CropVolume(Volume=self.Segmentation, Coordinates=self.Coordinates)
                 self.CreateSegmentationNode(self.Segmentation, "Heart", self.VolumeIJKToRAS, self.HeartSeg3D)
                 self.HeartSegNodeDone = True
 
-            # Recenter & Fit The Volume
-            # self.RecenterVolume()
-
         except Exception as e:
             slicer.util.errorDisplay("Failed to compute results: " + str(e))
             import traceback
             traceback.print_exc()
+
         if (self.SegAndCrop == self.SegAndCropDone) and (self.HeartSegNode == self.HeartSegNodeDone) \
                 and (self.CroppingEnabled == self.CroppingDone):
+            self.FinishedCallback()
             self.SetDefaultClassVariables()
 
     def CLITest(self, inputVolume, LocalProcessing=True, ProcessingURL="http://localhost:5000", Partial=True,
@@ -893,22 +904,23 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
         else:
             return SegmentedSlices
 
-    def SegmentWrapper(self):
-        scriptFolder = slicer.modules.cascoremodule.path.replace('CaScoreModule.py', '/Resources/ProcessScripts/')
-        scriptPath = os.path.join(scriptFolder, "Segmentation.slicer.py")
-        self.HeartSegmentationProcess = HeartSegmentationProcess(scriptPath, self.VolumeArray, self.Local,
-                                                                 self.ServerURL, self.Partial,
-                                                                 self.HeartModelPath)
-        logic = ProcessesLogic(completedCallback=lambda: self.SegmentationCompleted())
-        logic.addProcess(self.HeartSegmentationProcess)
-        logic.run()
-        logging.info('Segmentation Process Started')
+    def HeartSegmentWrapper(self):
+        if not self.HeartSegDone:
+            scriptFolder = slicer.modules.cascoremodule.path.replace('CaScoreModule.py', '/Resources/ProcessScripts/')
+            scriptPath = os.path.join(scriptFolder, "Segmentation.slicer.py")
+            self.HeartSegmentationProcess = HeartSegmentationProcess(scriptPath, self.VolumeArray, self.Local,
+                                                                     self.ServerURL, self.Partial,
+                                                                     self.HeartModelPath)
+            logic = ProcessesLogic(completedCallback=lambda: self.SegmentationCompleted())
+            logic.addProcess(self.HeartSegmentationProcess)
+            logic.run()
+            logging.info('Segmentation Process Started')
 
     def SegmentationCompleted(self):
-        logging.info('Segmentation completed in {0:.2f} seconds'.format(self.SegmentationTime))
-        self.Segmentation = self.HeartSegmentationProcess.output["Segmentation"]
-        self.SegmentationTime = self.HeartSegmentationProcess.output["SegmentationTime"]
         self.HeartSegDone = True
+        self.Segmentation = self.HeartSegmentationProcess.Output["Segmentation"]
+        self.SegmentationTime = self.HeartSegmentationProcess.Output["SegmentationTime"]
+        logging.info('Segmentation completed in {0:.2f} seconds'.format(self.SegmentationTime))
         self.RunOperations()
 
     def CheckDependencies(self):
