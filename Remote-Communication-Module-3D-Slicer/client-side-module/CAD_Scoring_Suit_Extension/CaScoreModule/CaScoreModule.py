@@ -954,11 +954,12 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
 
         # Add Margin
         z1 = (ROICoordinates[0] - Margin) if (ROICoordinates[0] - Margin >= 0) else 0
-        z2 = (ROICoordinates[1] + Margin) if (ROICoordinates[1] + Margin >= 0) else Volume.shape[0]
+        z2 = (ROICoordinates[1] + Margin) if (ROICoordinates[1] + Margin < Volume.shape[0]) else Volume.shape[0]
         x1 = (ROICoordinates[2] - Margin) if (ROICoordinates[2] - Margin >= 0) else 0
-        x2 = (ROICoordinates[3] + Margin) if (ROICoordinates[3] + Margin >= 0) else Volume.shape[1]
+        x2 = (ROICoordinates[3] + Margin) if (ROICoordinates[3] + Margin < Volume.shape[1]) else Volume.shape[1]
         y1 = (ROICoordinates[4] - Margin) if (ROICoordinates[4] - Margin >= 0) else 0
-        y2 = (ROICoordinates[5] + Margin) if (ROICoordinates[5] + Margin >= 0) else Volume.shape[2]
+        y2 = (ROICoordinates[5] + Margin) if (ROICoordinates[5] + Margin < Volume.shape[2]) else Volume.shape[2]
+
         Coordinates = [z1, z2, x1, x2, y1, y2]
 
         return Coordinates
