@@ -374,7 +374,9 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.AllowableOperations()
 
     def AllowableOperations(self):
-
+        """
+        Handles Disabling/Enabling The Options of The Extenstion Based onUser Selection
+        """
         # Disable Partial Segmentation Option If Segmentation Node Creation Option is Enabled,
         # As We Need To Fully Segment The Heart, Also Disables Requesting Segmentation As It Is Required
 
@@ -408,6 +410,9 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.updateGUIFromParameterNode()
 
     def RecenterVolume(self):
+        """
+        Center And Fit The Currently Viewed Volume
+        """
         # Center Volume in the Scene an update the view
         CompositeNode = slicer.app.layoutManager().sliceWidget("Red").sliceLogic().GetSliceCompositeNode()
         VolumeNodeID = CompositeNode.GetBackgroundVolumeID()
@@ -418,6 +423,10 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         logging.info(Progress)
 
     def ProcessingCompleted(self):
+        """
+        Called When All Operations Are Completed
+        """
+        # Re-Enable The Apply Button
         self.ui.applyButton.setEnabled(True)
 
         # Recenter & Fit The Volume
@@ -427,6 +436,9 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         logging.info('Processing completed in {0:.2f} seconds'.format(stopTime - self.startTime))
 
     def ProcessingStarted(self):
+        """
+        Updates UI Elements To A Suitable State Before The Start of The Modules Operations
+        """
         # Collapse Settings For Better Progress View
         self.ui.GeneralSettings.collapsed = True
         self.ui.LocalSettings.collapsed = True
@@ -601,6 +613,9 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
         logging.info('Processing completed in {0:.2f} seconds'.format(stopTime - startTime))
 
     def SetDefaultClassVariables(self):
+        """
+        Sets The Class Variable's To Their Default Values, Required After Operations Are Completed
+        """
         self.Local = None
         self.Partial = None
         self.HeartSegNode = None
@@ -632,15 +647,26 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
         self.CalTime = None
 
     def SetParametersFromNode(self, InputVolumeNode, parameterNode):
+        """
+        Saves The Given Parameters in A Class Variable
+        :param InputVolumeNode: VolumeNode To Run The Operations On
+        :param parameterNode: Parameter Node Containing The Required Parameters For The Modules Functionality
+        """
         self.InputVolumeNode = InputVolumeNode
         self.parameterNode = parameterNode
 
     def run(self):
-        print("Hi")
+        """Calls The Start Operation Function, Was Required For Threading"""
         self.StartOperations(self.InputVolumeNode, self.parameterNode, self.UpdateCallback, self.FinishedCallback)
 
     def StartOperations(self, InputVolumeNode, parameterNode, UpdateCallback=None, FinishedCallback=None):
-
+        """
+       Does Preparations Required To Run The Selected Operations in The Module's Widget
+       :param InputVolumeNode: VolumeNode To Run The Operations On
+       :param parameterNode: Parameter Node Containing The Required Parameters For The Modules Functionality
+       :param UpdateCallback: Function To Call For Progress Updates
+       :param FinishedCallback: Function To Call When All Operations Are Completed
+        """
         # Extract All Parameters From The Parameter Node
         self.SegAndCropDone = False
         self.HeartSegDone = False
@@ -688,7 +714,9 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
         self.RunOperations()
 
     def RunOperations(self):
-
+        """
+        Runs The Selected Operations in The Module's Widget, Recalled Till All Operations Are Completed
+        """
         try:
             # CLI Tests Start
             # OutputVolume = []
@@ -706,15 +734,14 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
             # Compute output
             if not (self.HeartSegDone or self.SegAndCropDone):
                 if self.SegAndCrop and not self.Local and not self.SegAndCropDone:
-                    self.SegmentationProcessWrapper("SegAndCrop.slicer.py", self.VolumeArray, self.Local,
-                                                    self.ServerURL, self.Partial, self.HeartModelPath,
-                                                    self.SegAndCropCompleted)
+                    self.SegmentationProcessWrapper("SegAndCrop.slicer.py", self.SegAndCropCompleted, self.VolumeArray,
+                                                    self.Local, self.ServerURL, self.Partial, self.HeartModelPath)
 
                 elif self.HeartSegNode or self.CroppingEnabled and not self.HeartSegDone and \
                         (self.DependenciesChecked == self.Local):
-                    self.SegmentationProcessWrapper("Segmentation.slicer.py", self.VolumeArray, self.Local,
-                                                    self.ServerURL, self.Partial, self.HeartModelPath,
-                                                    self.HeartSegmentationCompleted)
+                    self.SegmentationProcessWrapper("Segmentation.slicer.py", self.HeartSegmentationCompleted,
+                                                    self.VolumeArray, self.Local, self.ServerURL, self.Partial,
+                                                    self.HeartModelPath)
 
             if self.CroppingEnabled and not self.SegAndCrop and self.HeartSegDone and not self.CoordinatesCalculated:
 
@@ -756,7 +783,9 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
 
     def CLITest(self, inputVolume, LocalProcessing=True, ProcessingURL="http://localhost:5000", Partial=True,
                 ModelPath=None, outputVolume=None):
-
+        """
+        Function Used To Run Segment The Given Volume Using Slicer's CLI Node, Still A Stub, Not Working
+        """
         import time
         startTime = time.time()
         logging.info('Processing started')
@@ -785,7 +814,14 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
 
     def SegmentAndCrop(self, inputVolume, Local=True, ProcessingURL="http://localhost:5000",
                        ModelPath=None):
-
+        """
+       Gets The Coordinates of The Bounding Box of The Result of Segmenting THe Given Volume
+       :param inputVolume: NumPy Array of The Volume
+       :param Local: It True, Process Data Locally
+       :param ProcessingURL: If Local is Set To False, Send The Volume To This URL For Processing
+       :param ModelPath: Path of The TensorFlow Model Used in Segmentation
+       :returns Coordinates: Array Containing The Coordinates of The Bounding Box
+        """
         # TODO: Receive Routes From Caller
         if inputVolume is None:
             raise ValueError("Input volume is invalid")
@@ -827,9 +863,19 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
 
         return Coordinates
 
-    def Segment(self, inputVolume, LocalProcessing=True, ProcessingURL="http://localhost:5000", Partial=True,
+    def Segment(self, inputVolume, LocalProcessing=True, ServerURL="http://localhost:5000", Partial=True,
                 ReturnTime=True, ModelPath=None):
-
+        """
+       Applies A TensorFlow Segmentation Model To The Given Volume
+       :param inputVolume: NumPy Array of The Volume
+       :param LocalProcessing: It True, Process Data Locally
+       :param ServerURL: If Local is Set To False, Send The Volume To This URL For Processing
+       :param Partial: If True, Segments Only 3 Slices in Each View, Used in Cropping
+       :param ReturnTime: Returns The Time Taken by The Function
+       :param ModelPath: Path of The TensorFlow Model Used in Segmentation
+       :returns SegmentedSlices: Array Containing The Segmented Volume
+       :returns SegmentTime: Time Taken By The Function
+        """
         # TODO: Receive Routes From Caller
         if inputVolume is None:
             raise ValueError("Input volume is invalid")
@@ -850,10 +896,9 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
             SegmentedSlices = [[], [], []]
             RawSliceArrays, files, ShiftValues = self.GetSampleSlicesFromVolume(VolumeArray=VolumeArray,
                                                                                 Local=LocalProcessing)
-
             if not LocalProcessing:
                 # Send Data To Server For Processing
-                SliceSendReq = requests.post(ProcessingURL + "/segment/slices", files=files, data=ShiftValues)
+                SliceSendReq = requests.post(ServerURL + "/segment/slices", files=files, data=ShiftValues)
                 Response = BytesIO(SliceSendReq.content)
                 Response.seek(0)
                 Data = np.load(Response)
@@ -879,7 +924,7 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
                 CompressedVolume = BytesIO()
                 np.savez_compressed(CompressedVolume, Volume=VolumeArray)
                 CompressedVolume.seek(0)
-                SliceSendReq = requests.post(ProcessingURL + "/segment/volume", files={"Volume": CompressedVolume})
+                SliceSendReq = requests.post(ServerURL + "/segment/volume", files={"Volume": CompressedVolume})
                 Response = BytesIO(SliceSendReq.content)
                 Response.seek(0)
                 Data = np.load(Response)
@@ -910,9 +955,18 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
         else:
             return SegmentedSlices
 
-    def SegmentationProcessWrapper(self, ScriptName, VolumeArray, Local, ServerURL, Partial, HeartModelPath,
-                                   CompletedCallback):
-
+    def SegmentationProcessWrapper(self, ScriptName, CompletedCallback, VolumeArray, Local=None,
+                                   ServerURL=None, Partial=None, HeartModelPath=None):
+        """
+       Starts The Given Script Located in Resources/ProcessScripts Folder in a Separate Process
+       :param ScriptName: Name of The Script To Run
+       :param CompletedCallback: Function To Call When The Process is Completed
+       :param VolumeArray: NumPy Array of The Volume
+       :param Local: It True, Process Data Locally
+       :param ServerURL: If Local is Set To False, Send The Volume To This URL For Processing
+       :param Partial: If True, Segments Only 3 Slices in Each View, Used in Cropping
+       :param HeartModelPath: Path of The TensorFlow Model Used in Segmentation
+       """
         scriptFolder = slicer.modules.cascoremodule.path.replace('CaScoreModule.py', '/Resources/ProcessScripts/')
         scriptPath = os.path.join(scriptFolder, ScriptName)
         self.HeartSegmentationProcess = SegmentationProcess(scriptPath, VolumeArray, Local,
@@ -1062,7 +1116,15 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
         return CroppedVolume
 
     def GetSampleSlicesFromVolume(self, VolumeArray=None, Local=True):
-
+        """
+        Extracts The 3 Middle Slices From Each View (Axial, Sagittal & Coronal)
+        :param VolumeArray: Volume To Extract Slices From
+        :param Local: If True, Compresses The Slices Into a PNG For Online Processing
+        :return RawSliceArrays: List of 3 NumPy NDArrays Containing Slices From Axial, Sagittal & Coronal Views
+        :return SliceImages: List of Images Contacting PNG Data of The Slices in The Three Views
+        :return ShiftValues: Values Needed To Reconstruct The Original Slice Array After
+        Decompressing Them From Images To NumPy Arrays
+        """
         # Axial, Sagittal, Coronal
         Names = ["Ax1", "Ax2", "Ax3", "Sag1", "Sag2", "Sag3", "Cor1", "Cor2", "Cor3"]
         SliceImages = {}
