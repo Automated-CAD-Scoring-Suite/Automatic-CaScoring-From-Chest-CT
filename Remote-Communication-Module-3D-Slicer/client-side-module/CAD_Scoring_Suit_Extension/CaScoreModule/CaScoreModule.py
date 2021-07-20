@@ -466,15 +466,14 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             traceback.print_exc()
 
 
+# Helper Classes
 class Signals(qt.QObject):
     finished = qt.Signal()
     progress = qt.Signal(str)
 
 
-#
-# CaScoreModuleLogic
-#
-class HeartSegmentationProcess(Process):
+# Processes Classes
+class SegmentationProcess(Process):
 
     def __init__(self, scriptPath, VolumeArray, Local, ServerURL, Partial, ModelPath):
         Process.__init__(self, scriptPath)
@@ -483,18 +482,19 @@ class HeartSegmentationProcess(Process):
         self.Local = Local
         self.ServerURL = ServerURL
         self.Partial = Partial
-        self.Name = f"OfflinePrediction-{os.path.basename(ModelPath)}"
+        self.Name = f"Segmentation-{os.path.basename(ModelPath)}"
         self.Output = None
         self.Segmentation = None
         self.SegmentationTime = None
 
     def prepareProcessInput(self):
-        InputData = {'VolumeArray': self.VolumeArray,
-                     'ModelPath': self.ModelPath,
-                     'Local': self.Local,
-                     'ServerURL': self.ServerURL,
-                     'Partial': self.Partial,
-                     }
+        InputData = {
+            'VolumeArray': self.VolumeArray,
+            'ModelPath': self.ModelPath,
+            'Local': self.Local,
+            'ServerURL': self.ServerURL,
+            'Partial': self.Partial,
+        }
         with open('data.pkl', 'wb') as f:
             pickle.dump(InputData, f)
 
@@ -503,6 +503,10 @@ class HeartSegmentationProcess(Process):
         os.remove('data.pkl')
         self.Output = output
 
+
+#
+# CaScoreModuleLogic
+#
 
 class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
     """
@@ -703,7 +707,9 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
 
                 elif self.HeartSegNode or self.CroppingEnabled and not self.HeartSegDone and \
                         (self.DependenciesChecked == self.Local):
-                    self.HeartSegmentWrapper()
+                    self.SegmentationProcessWrapper("Segmentation.slicer.py", self.VolumeArray, self.Local,
+                                                    self.ServerURL, self.Partial, self.HeartModelPath,
+                                                    self.HeartSegmentationCompleted)
 
             if self.CroppingEnabled and not self.SegAndCrop and self.HeartSegDone and not self.CoordinatesCalculated:
 
@@ -899,19 +905,24 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
         else:
             return SegmentedSlices
 
-    def HeartSegmentWrapper(self):
-        if not self.HeartSegDone:
-            scriptFolder = slicer.modules.cascoremodule.path.replace('CaScoreModule.py', '/Resources/ProcessScripts/')
-            scriptPath = os.path.join(scriptFolder, "Segmentation.slicer.py")
-            self.HeartSegmentationProcess = HeartSegmentationProcess(scriptPath, self.VolumeArray, self.Local,
-                                                                     self.ServerURL, self.Partial,
-                                                                     self.HeartModelPath)
-            logic = ProcessesLogic(completedCallback=lambda: self.SegmentationCompleted())
-            logic.addProcess(self.HeartSegmentationProcess)
-            logic.run()
-            logging.info('Segmentation Process Started')
+    def SegmentationProcessWrapper(self, ScriptName, VolumeArray, Local, ServerURL, Partial, HeartModelPath,
+                                   CompletedCallback):
 
-    def SegmentationCompleted(self):
+        scriptFolder = slicer.modules.cascoremodule.path.replace('CaScoreModule.py', '/Resources/ProcessScripts/')
+        scriptPath = os.path.join(scriptFolder, ScriptName)
+        self.HeartSegmentationProcess = SegmentationProcess(scriptPath, VolumeArray, Local,
+                                                            ServerURL, Partial,
+                                                            HeartModelPath)
+        logic = ProcessesLogic(completedCallback=lambda: CompletedCallback())
+        logic.addProcess(self.HeartSegmentationProcess)
+        logic.run()
+        logging.info('Segmentation Process Started')
+
+    def HeartSegmentationCompleted(self):
+        """
+        Callback Function Called When Heart Segmentation Process is Completed, Sets Completion Variables
+        And Extracts Data
+        """
         self.HeartSegDone = True
         self.Segmentation = self.HeartSegmentationProcess.Output["Segmentation"]
         self.SegmentationTime = self.HeartSegmentationProcess.Output["SegmentationTime"]
