@@ -419,8 +419,29 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         CurrentNode = slicer.mrmlScene.GetNodeByID(VolumeNodeID)
         slicer.util.setSliceViewerLayers(foreground=CurrentNode, fit=True)
 
-    def reportProgress(self, Progress):
-        logging.info(Progress)
+    def reportProgress(self, Step, Progress):
+        if Step == 1:
+            self.ui.SegmentationLabel.setEnabled(True)
+            self.ui.SegmentationProgress.setEnabled(True)
+            self.ui.SegmentationProgress.text = Progress
+        elif Step == 2:
+            self.ui.CroppingLabel.setEnabled(True)
+            self.ui.CroppingProgress.setEnabled(True)
+            self.ui.CroppingProgress.text = Progress
+        elif Step == 3:
+            self.ui.CalsLabel.setEnabled(True)
+            self.ui.CalProgress.setEnabled(True)
+            self.ui.CalProgress.text = Progress
+        elif Step == 4:
+            self.ui.VisualizationLabel.setEnabled(True)
+            self.ui.VisualizationProgress.setEnabled(True)
+            self.ui.VisualizationProgress.text = Progress
+        elif Step == 5:
+            self.ui.Results.setEnabled(True)
+            self.ui.Results.collapsed = False
+            self.ui.CalVolLabel.setEnabled(True)
+            self.ui.CalVol.setEnabled(True)
+            self.ui.CalVol.text = Progress
 
     def ProcessingCompleted(self):
         """
@@ -740,6 +761,7 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
             # print(OutputVolume)
             # CLI Tests End
 
+            self.UpdateCallback(1, "Checking Segmentation Dependencies")
             # Check For Dependencies & Install Missing Ones
             if self.Local and not self.DependenciesChecked:
                 self.CheckDependencies()
@@ -747,24 +769,37 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
 
             # Get The Heart Segmentation/Coordinates
             if not (self.HeartSegDone or self.SegAndCropDone):
-                if self.SegAndCrop and not self.Local and not self.SegAndCropDone:
+                self.UpdateCallback(1, "Segmentation Started")
+                if self.SegAndCrop and not self.Local and not eself.SegAndCropDon:
                     # Without Receiving The Segmentation, Get The Bounding Box Coordinates
                     self.SegmentationProcessWrapper("SegAndCrop.slicer.py", self.SegAndCropCompleted, self.VolumeArray,
                                                     self.Local, self.ServerURL, self.Partial, self.HeartModelPath)
-
+                    self.UpdateCallback(1, "Sending Slices To The Server")
                 elif (self.HeartSegNode or self.CroppingEnabled) and not self.HeartSegDone and \
                         (self.DependenciesChecked == self.Local):
                     # Get The Segmentation
+                    if self.Local:
+                        self.UpdateCallback(1, "Segmenting Locally")
+                    else:
+                        self.UpdateCallback(1, "Sending Volume To The Server")
                     self.SegmentationProcessWrapper("Segmentation.slicer.py", self.HeartSegmentationCompleted,
                                                     self.VolumeArray, self.Local, self.ServerURL, self.Partial,
                                                     self.HeartModelPath)
+            if self.HeartSegDone:
+                self.UpdateCallback(1, "Completed in {0:.2f} Seconds".format(self.SegmentationTime))
+            elif self.SegAndCropDone:
+                self.UpdateCallback(1, "Completed in {0:.2f} Seconds".format(self.SegAndCropTime))
+                self.UpdateCallback(2, "Received From The Server")
+
             # Get Cropping Coordinates & Add Margins
             if self.CroppingEnabled and not self.SegAndCrop and self.HeartSegDone and not self.CoordinatesCalculated:
                 # Calculate Coordinates & Add Margin
+                self.UpdateCallback(2, "Calculating Cropping Coordinates")
                 self.Coordinates = self.GetCoordinates(self.Segmentation, self.Partial, 20)
                 self.CoordinatesCalculated = True
 
             elif self.CroppingEnabled and self.SegAndCrop and not self.CoordinatesCalculated and self.SegAndCropDone:
+                self.UpdateCallback(2, "Adding Margins")
                 # Add A Margin Only To The Coordinates Received From The Server
                 self.Coordinates = self.AddMargin(Volume=self.VolumeArray, ROICoordinates=self.Coordinates, Margin=20)
                 self.CoordinatesCalculated = True
@@ -774,22 +809,26 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
                 logging.info(f"The Cropping Coordinates Are Z->{self.Coordinates[0]}:{self.Coordinates[1]}, "
                              f"X->{self.Coordinates[2]}:{self.Coordinates[3]}, "
                              f"Y->{self.Coordinates[4]}:{self.Coordinates[5]}")
-
+                self.UpdateCallback(2, f"Cropping Volume Z->{self.Coordinates[0]}:{self.Coordinates[1]}, "
+                                       f"X->{self.Coordinates[2]}:{self.Coordinates[3]}, "
+                                       f"Y->{self.Coordinates[4]}:{self.Coordinates[5]}")
                 NewVolume = self.CropVolume(Volume=self.VolumeArray, Coordinates=self.Coordinates)
                 slicer.util.updateVolumeFromArray(self.InputVolumeNode, NewVolume)
                 logging.info(f"Cropped!")
                 self.CroppingDone = True
+                self.UpdateCallback(2, "Volume Cropped")
 
             # Display The Heart Segmentation
             if not self.Partial and self.HeartSegNode and not self.HeartSegNodeDone \
                     and self.HeartSegDone and (self.CroppingDone == self.CroppingEnabled):
-
+                self.UpdateCallback(4, "Creating The Heart Segmentation Node")
                 if self.CroppingEnabled:
                     # If Cropping is Enabled, Also Crop The Segmentation
                     self.Segmentation = self.CropVolume(Volume=self.Segmentation, Coordinates=self.Coordinates)
                 self.CreateSegmentationNode(self.Segmentation, f'{self.VolumeName}-Heart', self.VolumeIJKToRAS,
                                             self.HeartSeg3D)
                 self.HeartSegNodeDone = True
+                self.UpdateCallback(4, "Heart Visualized")
 
             # Find Calcifications
             if self.CalSegNode and not self.CalSegDone and (self.SegAndCrop == self.SegAndCropDone) and \
