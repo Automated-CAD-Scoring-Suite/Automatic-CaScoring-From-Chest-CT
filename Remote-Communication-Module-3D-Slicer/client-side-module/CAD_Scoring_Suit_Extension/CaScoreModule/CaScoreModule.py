@@ -450,6 +450,7 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         # Disable Apply Button
         self.ui.applyButton.setDisabled(True)
+        self.ui.applyButton.setEnabled(False)
 
     def onApplyButton(self):
         """
@@ -468,7 +469,7 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         logging.info('Processing started')
 
         try:
-
+            self.ui.applyButton.setDisabled(True)
             self.logic.StartOperations(InputVolumeNode, self._parameterNode, self.reportProgress,
                                        self.ProcessingCompleted)
 
