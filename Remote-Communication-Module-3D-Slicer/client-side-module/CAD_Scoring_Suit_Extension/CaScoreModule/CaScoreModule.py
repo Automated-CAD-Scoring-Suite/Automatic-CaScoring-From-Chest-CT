@@ -1065,7 +1065,7 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
 
         # Axial, Sagittal, Coronal
         Names = ["Ax1", "Ax2", "Ax3", "Sag1", "Sag2", "Sag3", "Cor1", "Cor2", "Cor3"]
-        files = {}
+        SliceImages = {}
         ShiftValues = {}
         RawSliceArrays = [[], [], []]
         VolumeShape = VolumeArray.shape
@@ -1103,9 +1103,9 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
                     SliceBytes = BytesIO()
                     SliceImg.save(SliceBytes, format="PNG")
                     SliceBytes.seek(0, 0)
-                    files[Names.pop(0)] = SliceBytes
+                    SliceImages[Names.pop(0)] = SliceBytes
 
-        return RawSliceArrays, files, ShiftValues
+        return RawSliceArrays, SliceImages, ShiftValues
 
 
 #
