@@ -310,6 +310,7 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.ui.SegAndCrop.checked = strtobool(self._parameterNode.GetParameter("SegAndCrop"))
 
         self.ui.UseProcesses.checked = strtobool(self._parameterNode.GetParameter("UseProcesses"))
+
         # Update buttons states and tooltips
         if self._parameterNode.GetNodeReference("InputVolume"):
             self.ui.applyButton.toolTip = "Compute CaScore"
@@ -611,7 +612,7 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
         self.CalSegDone = None
         self.VolumeName = None
         self.Calcifications = None
-        self.UseProcesses = None
+        self.UseProcesses = True
 
     def setDefaultParameters(self, parameterNode):
         """
@@ -625,6 +626,8 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
             Path = RepoRoot + '/Models/Segmentation/Models_Saved/Heart_Localization'
             if os.path.exists(Path):
                 parameterNode.SetParameter("HeartModelPath", Path)
+        if not parameterNode.GetParameter("UseProcesses"):
+            parameterNode.SetParameter("UseProcesses", "true")
 
     def processOld(self, inputVolume, outputVolume, imageThreshold, invert=False, showResult=True):
         """
@@ -695,7 +698,7 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
         self.CalSegDone = None
         self.VolumeName = None
         self.Calcifications = None
-        self.UseProcesses = None
+        self.UseProcesses = True
 
     def SetParametersFromNode(self, InputVolumeNode, parameterNode):
         """
