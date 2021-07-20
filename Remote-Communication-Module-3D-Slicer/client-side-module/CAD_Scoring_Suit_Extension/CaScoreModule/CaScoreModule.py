@@ -565,6 +565,9 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
         self.SegAndCropTime = None
         self.CalSegNodeDone = None
         self.CalTime = None
+        self.CalSegDone = None
+        self.VolumeName = None
+        self.Calcifications = None
 
     def setDefaultParameters(self, parameterNode):
         """
@@ -645,6 +648,9 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
         self.SegAndCropTime = None
         self.CalSegNodeDone = None
         self.CalTime = None
+        self.CalSegDone = None
+        self.VolumeName = None
+        self.Calcifications = None
 
     def SetParametersFromNode(self, InputVolumeNode, parameterNode):
         """
@@ -688,6 +694,9 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
         # Store Volume Node
         self.InputVolumeNode = InputVolumeNode
 
+        # Get Volume Name
+        self.VolumeName = self.InputVolumeNode.GetName()
+
         # Get IJKToRAS Matrix
         # Required to get some data from the volume (spacing, margin, etc.)
         # This data is used after that to show the segmentation node after finished the processing
@@ -695,7 +704,9 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
         InputVolumeNode.GetIJKToRASMatrix(self.VolumeIJKToRAS)
 
         # Store Callbacks
+        self.UpdateCallback = UpdateCallback
         self.FinishedCallback = FinishedCallback
+
         # Initialize Variables
         self.Segmentation = []
         self.SegmentationTime = 0
@@ -753,6 +764,7 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
                 self.Coordinates = self.AddMargin(Volume=self.VolumeArray, ROICoordinates=self.Coordinates, Margin=20)
                 self.CoordinatesCalculated = True
 
+            # Crop The Volume
             if self.CroppingEnabled or self.SegAndCrop and self.CoordinatesCalculated and not self.CroppingDone:
                 logging.info(f"The Cropping Coordinates Are Z->{self.Coordinates[0]}:{self.Coordinates[1]}, "
                              f"X->{self.Coordinates[2]}:{self.Coordinates[3]}, "
@@ -763,13 +775,34 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
                 logging.info(f"Cropped!")
                 self.CroppingDone = True
 
+            # Display The Heart Segmentation
             if not self.Partial and self.HeartSegNode and not self.HeartSegNodeDone \
                     and self.HeartSegDone and (self.CroppingDone == self.CroppingEnabled):
 
                 if self.CroppingEnabled:
                     self.Segmentation = self.CropVolume(Volume=self.Segmentation, Coordinates=self.Coordinates)
-                self.CreateSegmentationNode(self.Segmentation, "Heart", self.VolumeIJKToRAS, self.HeartSeg3D)
+                self.CreateSegmentationNode(self.Segmentation, f'{self.VolumeName}-Heart', self.VolumeIJKToRAS, self.HeartSeg3D)
                 self.HeartSegNodeDone = True
+
+            # Find Calcifications
+            if self.CalSegNode and not self.CalSegDone and (self.SegAndCrop == self.SegAndCropDone) and \
+                    (self.HeartSegNode == self.HeartSegNodeDone) and (self.CroppingEnabled == self.CroppingDone):
+
+                self.SegmentationProcessWrapper("Segmentation.slicer.py", self.CalSegmentationCompleted,
+                                                self.VolumeArray, self.Local, self.ServerURL, self.Partial,
+                                                self.CalModelPath)
+
+            # Create Segmentation Node of The Calcifications
+            if self.CalSegNode and self.CalSegDone and not self.CalSegNodeDone:
+
+                self.CreateSegmentationNode(self.Calcifications, f'{self.VolumeName}-Calcifications',
+                                            self.VolumeIJKToRAS, self.CalSeg3D)
+                self.CalSegNodeDone = True
+
+            # Calculate Calcifications Volume And Call The Update Callback To Display It
+            if self.CalSegNodeDone:
+
+                pass
 
         except Exception as e:
             slicer.util.errorDisplay("Failed to compute results: " + str(e))
@@ -777,7 +810,7 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
             traceback.print_exc()
 
         if (self.SegAndCrop == self.SegAndCropDone) and (self.HeartSegNode == self.HeartSegNodeDone) \
-                and (self.CroppingEnabled == self.CroppingDone):
+                and (self.CroppingEnabled == self.CroppingDone) and (self.CalSegNode == self.CalSegNodeDone):
             self.FinishedCallback()
             self.SetDefaultClassVariables()
 
@@ -985,7 +1018,18 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
         self.HeartSegDone = True
         self.Segmentation = self.HeartSegmentationProcess.Output["Segmentation"]
         self.SegmentationTime = self.HeartSegmentationProcess.Output["SegmentationTime"]
-        logging.info('Segmentation completed in {0:.2f} seconds'.format(self.SegmentationTime))
+        logging.info('Heart Segmentation completed in {0:.2f} seconds'.format(self.SegmentationTime))
+        self.RunOperations()
+
+    def CalSegmentationCompleted(self):
+        """
+        Callback Function Called When Heart Calcification's Segmentation Process is Completed, Sets Completion Variables
+        And Extracts Data
+        """
+        self.CalSegDone = True
+        self.Calcifications = self.HeartSegmentationProcess.Output["Segmentation"]
+        self.CalTime = self.HeartSegmentationProcess.Output["SegmentationTime"]
+        logging.info('Calcifications Segmented in {0:.2f} seconds'.format(self.CalTime))
         self.RunOperations()
 
     def SegAndCropCompleted(self):
