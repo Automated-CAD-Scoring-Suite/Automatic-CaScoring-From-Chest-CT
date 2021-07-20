@@ -14,7 +14,7 @@
    </rect>
   </property>
   <property name="toolTip">
-   <string>If Checked, Removes All Personal Data If Found Before Sending To The Server</string>
+   <string/>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout_4">
    <item>
