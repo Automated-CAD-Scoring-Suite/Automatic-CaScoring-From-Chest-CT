@@ -770,7 +770,7 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
             # Get The Heart Segmentation/Coordinates
             if not (self.HeartSegDone or self.SegAndCropDone):
                 self.UpdateCallback(1, "Segmentation Started")
-                if self.SegAndCrop and not self.Local and not eself.SegAndCropDon:
+                if self.SegAndCrop and not self.Local and not self.SegAndCropDon:
                     # Without Receiving The Segmentation, Get The Bounding Box Coordinates
                     self.SegmentationProcessWrapper("SegAndCrop.slicer.py", self.SegAndCropCompleted, self.VolumeArray,
                                                     self.Local, self.ServerURL, self.Partial, self.HeartModelPath)
