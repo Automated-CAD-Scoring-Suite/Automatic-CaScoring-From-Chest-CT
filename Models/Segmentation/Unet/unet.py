@@ -105,8 +105,8 @@ if __name__ == '__main__':
     from tensorflow.keras.utils import plot_model
     from tensorflow.keras.layers import Conv3D, MaxPooling3D, UpSampling3D, concatenate, Activation
     uNet3D = UNet("conv3D", up_sample="upSample3D", transpose=None, pool="max3D")
-    model = uNet3D(5, 2, (112, 112, 112, 1), (3, 3, 3))
+    model = uNet3D(4, 2, (32, 64, 64, 1), (3, 3, 3), batch_norm=True, drop_out=0.5)
     # uNet = UNet(transpose='upSample3D')
     # model = uNet(4, 2, (128, 128, 1), (3, 3))
     print(model.summary())
-    # plot_model(model, show_shapes=True, to_file='model3.png')
+    plot_model(model, show_shapes=True, to_file='model3.png')
