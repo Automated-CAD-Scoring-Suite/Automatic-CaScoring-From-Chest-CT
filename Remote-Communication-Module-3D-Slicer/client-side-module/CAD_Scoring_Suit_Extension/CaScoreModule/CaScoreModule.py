@@ -309,6 +309,7 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.ui.CalSeg3D.checked = strtobool(self._parameterNode.GetParameter("CalSeg3D"))
             self.ui.SegAndCrop.checked = strtobool(self._parameterNode.GetParameter("SegAndCrop"))
 
+        self.ui.UseProcesses.checked = strtobool(self._parameterNode.GetParameter("UseProcesses"))
         # Update buttons states and tooltips
         if self._parameterNode.GetNodeReference("InputVolume"):
             self.ui.applyButton.toolTip = "Compute CaScore"
@@ -347,6 +348,7 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self._parameterNode.SetParameter("Anonymize", "true" if self.ui.Anonymize.checked else "false")
         self._parameterNode.SetParameter("HeartModelPath", self.ui.HeartModelPath.currentPath)
         self._parameterNode.SetParameter("CalModelPath", self.ui.CalModelPath.currentPath)
+        self._parameterNode.SetParameter("UseProcesses", "true" if self.ui.UseProcesses.checked else "false")
 
         self._parameterNode.EndModify(wasModified)
 
@@ -609,6 +611,7 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
         self.CalSegDone = None
         self.VolumeName = None
         self.Calcifications = None
+        self.UseProcesses = None
 
     def setDefaultParameters(self, parameterNode):
         """
@@ -692,6 +695,7 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
         self.CalSegDone = None
         self.VolumeName = None
         self.Calcifications = None
+        self.UseProcesses = None
 
     def SetParametersFromNode(self, InputVolumeNode, parameterNode):
         """
@@ -730,6 +734,7 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
         self.CalSeg3D = bool(strtobool(parameterNode.GetParameter("CalSeg3D")))
         self.CroppingEnabled = bool(strtobool(parameterNode.GetParameter("CroppingEnabled")))
         self.SegAndCrop = bool(strtobool(parameterNode.GetParameter("SegAndCrop")))
+        self.UseProcesses = bool(strtobool(parameterNode.GetParameter("UseProcesses")))
         self.HeartModelPath = parameterNode.GetParameter("HeartModelPath")
         self.CalModelPath = parameterNode.GetParameter("CalModelPath")
         self.ServerURL = parameterNode.GetParameter("URL")
@@ -791,9 +796,15 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
                 self.UpdateCallback(1, "Segmentation Started")
                 if self.SegAndCrop and not self.Local and not self.SegAndCropDone:
                     # Without Receiving The Segmentation, Get The Bounding Box Coordinates
-                    self.SegmentationProcessWrapper("SegAndCrop.slicer.py", self.SegAndCropCompleted, self.VolumeArray,
-                                                    self.Local, self.ServerURL, self.Partial, self.HeartModelPath)
                     self.UpdateCallback(1, "Sending Slices To The Server")
+                    if self.UseProcesses:
+                        self.SegmentationProcessWrapper("SegAndCrop.slicer.py", self.SegAndCropCompleted, self.VolumeArray,
+                                                        self.Local, self.ServerURL, self.Partial, self.HeartModelPath)
+                    else:
+                        Start = time.time()
+                        self.Coordinates = self.SegmentAndCrop(self.VolumeArray, self.Local, self.ServerURL, self.HeartModelPath)
+                        self.SegAndCropTime = time.time() - Start
+                        self.SegAndCropDone = True
                 elif (self.HeartSegNode or self.CroppingEnabled) and not self.HeartSegDone and \
                         (self.DependenciesChecked == self.Local):
                     # Get The Segmentation
@@ -801,9 +812,15 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
                         self.UpdateCallback(1, "Segmenting Locally")
                     else:
                         self.UpdateCallback(1, "Sending Volume To The Server")
-                    self.SegmentationProcessWrapper("Segmentation.slicer.py", self.HeartSegmentationCompleted,
-                                                    self.VolumeArray, self.Local, self.ServerURL, self.Partial,
-                                                    self.HeartModelPath)
+                    if self.UseProcesses:
+                        self.SegmentationProcessWrapper("Segmentation.slicer.py", self.HeartSegmentationCompleted,
+                                                        self.VolumeArray, self.Local, self.ServerURL, self.Partial,
+                                                        self.HeartModelPath)
+                    else:
+                        self.Segmentation, self.SegmentationTime = self.Segment(self.VolumeArray, self.Local,
+                                                                                self.ServerURL, self.Partial, True,
+                                                                                self.HeartModelPath)
+                        self.HeartSegDone = True
             if self.HeartSegDone:
                 self.UpdateCallback(1, "Completed in {0:.2f} Seconds".format(self.SegmentationTime))
             elif self.SegAndCropDone:
@@ -852,9 +869,20 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
             # Find Calcifications
             if self.CalSegNode and not self.CalSegDone and (self.SegAndCrop == self.SegAndCropDone) and \
                     (self.HeartSegNode == self.HeartSegNodeDone) and (self.CroppingEnabled == self.CroppingDone):
-                self.SegmentationProcessWrapper("Segmentation.slicer.py", self.CalSegmentationCompleted,
-                                                self.VolumeArray, self.Local, self.ServerURL, self.Partial,
-                                                self.CalModelPath)
+                if self.Local:
+                    self.UpdateCallback(3, "Segmenting Locally")
+                else:
+                    self.UpdateCallback(3, "Sending Volume To The Server")
+                if self.UseProcesses:
+                    self.SegmentationProcessWrapper("Segmentation.slicer.py", self.CalSegmentationCompleted,
+                                                    self.VolumeArray, self.Local, self.ServerURL, self.Partial,
+                                                    self.CalModelPath)
+                else:
+                    self.Calcifications, self.CalTime = self.Segment(self.VolumeArray, self.Local,
+                                                                     self.ServerURL, self.Partial, True,
+                                                                     self.CalModelPath)
+                    self.CalSegDone = True
+                    self.UpdateCallback(3, "Completed in {0:.2f} Seconds".format(self.CalTime))
 
             # Create Segmentation Node of The Calcifications
             if self.CalSegNode and self.CalSegDone and not self.CalSegNodeDone:
