@@ -274,34 +274,35 @@ class CACGen(NiftyGen):
 
         return image_array, ref_array
 
-    # def __getitem__(self, index: int) -> tuple:
-    #     # Load Segmentation and Data in the Record
-    #     img, seg = self.LoadData(index)
-    #
-    #     # Process the Scan and Segmentation Arrays
-    #     img = self.ProcessImage(img)
-    #     seg = self.ProcessImage(seg, segmentation=True)
-    #
-    #     # Apply the Cube divider Algorithm
-    #     img, seg, _, _, _ = self.getCubes(img, seg, [64, 64, 32])
-    #
-    #     # Concatenate Both Sources for a faster
-    #     s = img.shape[1]
-    #     src = np.concatenate([img, seg], 1)
-    #
-    #     # Reshape Both Arrays
-    #     src = self.ReshapeImage(src)
-    #     img = src[:, :s, :, :, :]
-    #     seg = src[:, s:, :, :, :]
-    #
-    #     # Checking Segmentation only Contains 0 and 1, Fixing Rotations and Zooming Results
-    #     seg[seg <= 0.5] = 0.0
-    #     seg[seg > 0.5] = 1.0
-    #
-    #     # # Saving Created Batches at Batches Directory
-    #     if self.save_batch:
-    #         self.SaveBatch(img, seg, index)
-    #     return img, seg
+    def __getitem__(self, index: int) -> tuple:
+        # Load Segmentation and Data in the Record
+        img, seg = self.LoadData(index)
+
+        # Process the Scan and Segmentation Arrays
+        seg = self.ProcessImage(seg, segmentation=True)
+        img = self.ProcessImage(img)
+
+        # Apply the Cube divider Algorithm
+        img, _, _, _ = self.GetCubes(img, [32, 64, 64])
+        seg, _, _, _ = self.GetCubes(seg, [32, 64, 64])
+
+        # Concatenate Both Sources for a faster
+        s = img.shape[1]
+        src = np.concatenate([img, seg], 1)
+
+        # Reshape Both Arrays
+        src = self.ReshapeImage(src)
+        img = src[:, :s, :, :, :]
+        seg = src[:, s:, :, :, :]
+
+        # Checking Segmentation only Contains 0 and 1, Fixing Rotations and Zooming Results
+        seg[seg <= 0.5] = 0.0
+        seg[seg > 0.5] = 1.0
+
+        # # Saving Created Batches at Batches Directory
+        if self.save_batch:
+            self.SaveBatch(img, seg, index)
+        return img, seg
 
     def ReshapeImage(self, img: np.ndarray) -> np.ndarray:
         """
@@ -318,7 +319,7 @@ class CACGen(NiftyGen):
         return src
 
     @staticmethod
-    def getCubes(img, msk, cube_size):
+    def GetCubes(img, cube_size):
         sizeX = img.shape[2]
         sizeY = img.shape[1]
         sizeZ = img.shape[0]
@@ -336,14 +337,10 @@ class CACGen(NiftyGen):
         imgNew = np.zeros(sizeNew, dtype=np.float16)
         imgNew[0:sizeZ, 0:sizeY, 0:sizeX] = img
 
-        mskNew = np.zeros(sizeNew, dtype=np.int)
-        mskNew[0:sizeZ, 0:sizeY, 0:sizeX] = msk
-
         n_ges = n_x * n_y * n_z
         n_4 = int(math.ceil(float(n_ges) / 4.) * 4)
 
         imgCubes = np.zeros((n_4, cubeSizeZ, cubeSizeY, cubeSizeX)) - 1  # -1 = air
-        mskCubes = np.zeros((n_4, cubeSizeZ, cubeSizeY, cubeSizeX))
 
         count = 0
         for z in range(n_z):
@@ -352,12 +349,9 @@ class CACGen(NiftyGen):
                     imgCubes[count] = imgNew[z * cubeSizeZ:(z + 1) * cubeSizeZ,
                                       y * cubeSizeY:(y + 1) * cubeSizeY,
                                       x * cubeSizeX:(x + 1) * cubeSizeX]
-                    mskCubes[count] = mskNew[z * cubeSizeZ:(z + 1) * cubeSizeZ,
-                                      y * cubeSizeY:(y + 1) * cubeSizeY,
-                                      x * cubeSizeX:(x + 1) * cubeSizeX]
                     count += 1
 
-        return imgCubes, mskCubes, n_x, n_y, n_z
+        return imgCubes, n_x, n_y, n_z
 
     def SaveBatch(self, img, seg, index):
         test_img = np.squeeze(img, -1)
@@ -383,7 +377,7 @@ if __name__ == '__main__':
     # training = 'Data/Training/'
     training = 'CaData/Training/'
     mode = '3D'
-    output_shape = (128, 128, 128)
+    output_shape = (112, 112, 112)
     input_shape = (112, 112, 112, 1)
     down_factor = True
 
@@ -396,7 +390,7 @@ if __name__ == '__main__':
     #     print(i[1].shape)
     aug = NiftyAugmentor([-10, 10, 0], [0.95, 1, 1.1], [0, 1])
 
-    genCAC = CACGen(training, augmenter=None, down_factor=True, save=True, mode=mode, output_shape=output_shape, scale=False)
+    genCAC = CACGen(training, augmenter=None, down_factor=True, save=False, mode=mode, output_shape=output_shape)
     for i in genCAC:
         print(i[0].shape)
         print(i[1].shape)

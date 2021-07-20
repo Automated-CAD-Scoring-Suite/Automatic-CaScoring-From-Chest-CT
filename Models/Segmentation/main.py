@@ -42,7 +42,7 @@ if gpus:
 mode = '3D'
 down_factor = True
 output_shape = (112, 112, 112)
-input_shape = (32, 64, 64, 1)
+input_shape = (64, 64, 32, 1)
 levels = 4
 kernel_size = (3, 3, 3)
 convolutions = 2
