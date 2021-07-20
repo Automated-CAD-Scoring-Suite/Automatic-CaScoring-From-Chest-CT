@@ -7,6 +7,16 @@ from PIL import Image
 import os
 import sys
 import pickle
+import logging
+from logging.handlers import RotatingFileHandler
+import traceback
+
+logger = logging.getLogger("Rotating Log")
+logger.setLevel(logging.ERROR)
+handler = RotatingFileHandler("SegLog.txt", maxBytes=10000, backupCount=5)
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+handler.setFormatter(formatter)
+logger.addHandler(handler)
 
 RepoRoot = os.path.dirname(
     os.path.dirname(
@@ -18,15 +28,6 @@ RepoRoot = os.path.dirname(
                             os.path.realpath(__file__))))))))
 
 sys.path.append(RepoRoot)
-
-with open('data.pkl', 'rb') as f:
-    Input = pickle.load(f)
-
-VolumeArray = Input["VolumeArray"]
-ModelPath = Input["ModelPath"]
-Local = Input["Local"]
-ServerURL = Input["ServerURL"]
-Partial = Input["Partial"]
 
 
 def GetSampleSlicesFromVolume(VolumeArray=None, Local=True):
@@ -75,77 +76,92 @@ def GetSampleSlicesFromVolume(VolumeArray=None, Local=True):
     return RawSliceArrays, files, ShiftValues
 
 
-# TODO: Receive Routes From Caller
+try:
+    with open('data.pkl', 'rb') as f:
+        Input = pickle.load(f)
 
-# Get Segmentation Start Time
-SegmentStart = time.time()
+    VolumeArray = Input["VolumeArray"]
+    ModelPath = Input["ModelPath"]
+    Local = Input["Local"]
+    ServerURL = Input["ServerURL"]
+    Partial = Input["Partial"]
 
-# Convert Volume To NumPy Array
-VolumeShape = VolumeArray.shape
-SegmentedSlices = []
 
-# Segment 3 Slicers From Each View
-if Partial:
-    SegmentedSlices = [[], [], []]
-    RawSliceArrays, files, ShiftValues = GetSampleSlicesFromVolume(VolumeArray=VolumeArray,
-                                                                   Local=Local)
 
-    if not Local:
-        # Send Data To Server For Processing
-        SliceSendReq = requests.post(ServerURL + "/segment/slices", files=files, data=ShiftValues)
-        Response = BytesIO(SliceSendReq.content)
-        Response.seek(0)
-        Data = np.load(Response)
-        SegmentedSlices[0] = np.copy(Data["Ax"])
-        SegmentedSlices[1] = np.copy(Data["Cor"])
-        SegmentedSlices[2] = np.copy(Data["Sag"])
-        Data.close()
-        logging.info(f"Segmented Slices Received From Server")
+    # TODO: Receive Routes From Caller
+
+    # Get Segmentation Start Time
+    SegmentStart = time.time()
+
+    # Convert Volume To NumPy Array
+    VolumeShape = VolumeArray.shape
+    SegmentedSlices = []
+
+    # Segment 3 Slicers From Each View
+    if Partial:
+        SegmentedSlices = [[], [], []]
+        RawSliceArrays, files, ShiftValues = GetSampleSlicesFromVolume(VolumeArray=VolumeArray,
+                                                                       Local=Local)
+
+        if not Local:
+            # Send Data To Server For Processing
+            SliceSendReq = requests.post(ServerURL + "/segment/slices", files=files, data=ShiftValues)
+            Response = BytesIO(SliceSendReq.content)
+            Response.seek(0)
+            Data = np.load(Response)
+            SegmentedSlices[0] = np.copy(Data["Ax"])
+            SegmentedSlices[1] = np.copy(Data["Cor"])
+            SegmentedSlices[2] = np.copy(Data["Sag"])
+            Data.close()
+            logging.info(f"Segmented Slices Received From Server")
+
+        else:
+            # Load Model
+            from Models.Segmentation.Inference import Infer
+
+            model = Infer(model_path=ModelPath, model_input=(112, 112, 112))
+            # Loop over 3 slices in each View and apply heart segmentation
+            for i in range(3):
+                SegSlice = model.predict(np.array(RawSliceArrays[i]))
+                SegmentedSlices[i].append(SegSlice)
+
+            logging.info(f"Segmentation Computed Locally")
 
     else:
-        # Load Model
-        from Models.Segmentation.Inference import Infer
+        if not Local:
+            CompressedVolume = BytesIO()
+            np.savez_compressed(CompressedVolume, Volume=VolumeArray)
+            CompressedVolume.seek(0)
+            SliceSendReq = requests.post(ServerURL + "/segment/volume", files={"Volume": CompressedVolume})
+            Response = BytesIO(SliceSendReq.content)
+            Response.seek(0)
+            Data = np.load(Response)
+            SegmentedSlices = np.copy(Data['Segmentation'])
+            Data.close()
+            logging.info(f"Segmented Slices Received From Server")
 
-        model = Infer(model_path=ModelPath, model_input=(112, 112, 112))
-        # Loop over 3 slices in each View and apply heart segmentation
-        for i in range(3):
-            SegSlice = model.predict(np.array(RawSliceArrays[i]))
-            SegmentedSlices[i].append(SegSlice)
+        else:
+            from Models.Segmentation.Inference import Infer
 
-        logging.info(f"Segmentation Computed Locally")
+            model = Infer(model_path=ModelPath, model_input=(112, 112, 112))
+            # Calculate Slice Time
+            SliceStart = time.time()
 
-else:
-    if not Local:
-        CompressedVolume = BytesIO()
-        np.savez_compressed(CompressedVolume, Volume=VolumeArray)
-        CompressedVolume.seek(0)
-        SliceSendReq = requests.post(ServerURL + "/segment/volume", files={"Volume": CompressedVolume})
-        Response = BytesIO(SliceSendReq.content)
-        Response.seek(0)
-        Data = np.load(Response)
-        SegmentedSlices = np.copy(Data['Segmentation'])
-        Data.close()
-        logging.info(f"Segmented Slices Received From Server")
+            SegmentedSlices = model.predict(VolumeArray)
 
-    else:
-        from Models.Segmentation.Inference import Infer
+            SliceEnd = time.time()
+            SliceTime = (SliceEnd - SliceStart)
+            print("Segmented The Volume in {:.2f}".format(SliceTime))
 
-        model = Infer(model_path=ModelPath, model_input=(112, 112, 112))
-        # Calculate Slice Time
-        SliceStart = time.time()
+            logging.info(f"Segmentation Computed Locally")
 
-        SegmentedSlices = model.predict(VolumeArray)
+    # Calculate Segmentation Time
+    SegmentEnd = time.time()
+    SegmentTime = SegmentEnd - SegmentStart
 
-        SliceEnd = time.time()
-        SliceTime = (SliceEnd - SliceStart)
-        print("Segmented The Volume in {:.2f}".format(SliceTime))
+    output = {'Segmentation': SegmentedSlices, 'SegmentationTime': SegmentTime}
 
-        logging.info(f"Segmentation Computed Locally")
-
-# Calculate Segmentation Time
-SegmentEnd = time.time()
-SegmentTime = SegmentEnd - SegmentStart
-
-output = {'Segmentation': SegmentedSlices, 'SegmentationTime': SegmentTime}
-
-sys.stdout.buffer.write(pickle.dumps(output))
+    sys.stdout.buffer.write(pickle.dumps(output))
+except Exception as e:
+    logger.error(str(e))
+    logger.error(traceback.format_exc())
