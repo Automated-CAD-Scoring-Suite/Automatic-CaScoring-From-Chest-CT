@@ -706,10 +706,9 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
             # Compute output
             if not (self.HeartSegDone or self.SegAndCropDone):
                 if self.SegAndCrop and not self.Local and not self.SegAndCropDone:
-
-                    self.Coordinates = self.SegmentAndCrop(self.VolumeArray, self.Local,
-                                                           self.ServerURL, self.HeartModelPath)
-                    self.SegAndCropDone = True
+                    self.SegmentationProcessWrapper("SegAndCrop.slicer.py", self.VolumeArray, self.Local,
+                                                    self.ServerURL, self.Partial, self.HeartModelPath,
+                                                    self.SegAndCropCompleted)
 
                 elif self.HeartSegNode or self.CroppingEnabled and not self.HeartSegDone and \
                         (self.DependenciesChecked == self.Local):
@@ -933,6 +932,16 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
         self.Segmentation = self.HeartSegmentationProcess.Output["Segmentation"]
         self.SegmentationTime = self.HeartSegmentationProcess.Output["SegmentationTime"]
         logging.info('Segmentation completed in {0:.2f} seconds'.format(self.SegmentationTime))
+        self.RunOperations()
+
+    def SegAndCropCompleted(self):
+        """
+        Callback Function Called When SegAndCrop Process is Completed, Sets Completion Variables And Extracts Data
+        """
+        self.SegAndCropDone = True
+        self.Coordinates = self.HeartSegmentationProcess.Output["Coordinates"]
+        self.SegAndCropTime = self.HeartSegmentationProcess.Output["SegAndCropTime"]
+        logging.info('Segmentation & Coordinates Calculation Completed in {0:.2f} Seconds'.format(self.SegAndCropTime))
         self.RunOperations()
 
     def CheckDependencies(self):
