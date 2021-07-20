@@ -473,6 +473,25 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.applyButton.setDisabled(True)
         self.ui.applyButton.setEnabled(False)
 
+        # Reset Progress
+        self.ui.SegmentationLabel.setEnabled(False)
+        self.ui.SegmentationProgress.setEnabled(False)
+        self.ui.SegmentationProgress.text = ""
+        self.ui.CroppingLabel.setEnabled(False)
+        self.ui.CroppingProgress.setEnabled(False)
+        self.ui.CroppingProgress.text = ""
+        self.ui.CalsLabel.setEnabled(False)
+        self.ui.CalProgress.setEnabled(False)
+        self.ui.CalProgress.text = ""
+        self.ui.VisualizationLabel.setEnabled(False)
+        self.ui.VisualizationProgress.setEnabled(False)
+        self.ui.VisualizationProgress.text = ""
+        self.ui.Results.setEnabled(False)
+        self.ui.Results.collapsed = True
+        self.ui.CalVolLabel.setEnabled(False)
+        self.ui.CalVol.setEnabled(False)
+        self.ui.CalVol.text = ""
+
     def onApplyButton(self):
         """
         Run processing when user clicks "Apply" button.
