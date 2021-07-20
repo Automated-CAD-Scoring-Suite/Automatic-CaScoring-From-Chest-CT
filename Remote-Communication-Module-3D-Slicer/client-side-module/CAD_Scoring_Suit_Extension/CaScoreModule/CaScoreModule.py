@@ -16,6 +16,8 @@ import qt
 from PIL import Image
 from slicer.ScriptedLoadableModule import *
 from slicer.util import VTKObservationMixin, pip_install
+from Processes import Process, ProcessesLogic
+import pickle
 
 # Processing Packages
 
@@ -330,10 +332,6 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         wasModified = self._parameterNode.StartModify()  # Modify all properties in a single batch
 
         self._parameterNode.SetNodeReferenceID("InputVolume", self.ui.inputSelector.currentNodeID)
-        # self._parameterNode.SetNodeReferenceID("OutputVolume", self.ui.outputSelector.currentNodeID)
-        # self._parameterNode.SetParameter("Threshold", str(self.ui.imageThresholdSliderWidget.value))
-        # self._parameterNode.SetParameter("Invert", "true" if self.ui.invertOutputCheckBox.checked else "false")
-        # self._parameterNode.SetNodeReferenceID("OutputVolumeInverse", self.ui.invertedOutputSelector.currentNodeID)
         self._parameterNode.SetParameter("URL",
                                          self.ui.URLLineEdit.text if self.ui.URLLineEdit.isEnabled()
                                          else "http://localhost:5000")
@@ -376,7 +374,9 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.AllowableOperations()
 
     def AllowableOperations(self):
-
+        """
+        Handles Disabling/Enabling The Options of The Extenstion Based onUser Selection
+        """
         # Disable Partial Segmentation Option If Segmentation Node Creation Option is Enabled,
         # As We Need To Fully Segment The Heart, Also Disables Requesting Segmentation As It Is Required
 
@@ -410,6 +410,9 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.updateGUIFromParameterNode()
 
     def RecenterVolume(self):
+        """
+        Center And Fit The Currently Viewed Volume
+        """
         # Center Volume in the Scene an update the view
         CompositeNode = slicer.app.layoutManager().sliceWidget("Red").sliceLogic().GetSliceCompositeNode()
         VolumeNodeID = CompositeNode.GetBackgroundVolumeID()
@@ -419,11 +422,23 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     def reportProgress(self, Progress):
         logging.info(Progress)
 
-    def onApplyButton(self):
+    def ProcessingCompleted(self):
         """
-        Run processing when user clicks "Apply" button.
+        Called When All Operations Are Completed
         """
+        # Re-Enable The Apply Button
+        self.ui.applyButton.setEnabled(True)
 
+        # Recenter & Fit The Volume
+        self.RecenterVolume()
+
+        stopTime = time.time()
+        logging.info('Processing completed in {0:.2f} seconds'.format(stopTime - self.startTime))
+
+    def ProcessingStarted(self):
+        """
+        Updates UI Elements To A Suitable State Before The Start of The Modules Operations
+        """
         # Collapse Settings For Better Progress View
         self.ui.GeneralSettings.collapsed = True
         self.ui.LocalSettings.collapsed = True
@@ -434,46 +449,71 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.Progress.collapsed = False
 
         # Disable Apply Button
-        self.ui.applyButton.setEnabled(False)
+        self.ui.applyButton.setDisabled(True)
 
+    def onApplyButton(self):
+        """
+        Run processing when user clicks "Apply" button.
+        """
         # Update Parameters
         self.updateParameterNodeFromGUI()
-
-        # Get Parameters
-        Partial = bool(strtobool(self._parameterNode.GetParameter("Partial")))
-        HeartSegNode = bool(strtobool(self._parameterNode.GetParameter("HeartSegNode")))
-        HeartSeg3D = bool(strtobool(self._parameterNode.GetParameter("HeartSeg3D")))
-        CalSegNode = bool(strtobool(self._parameterNode.GetParameter("CalSegNode")))
-        CalSeg3D = bool(strtobool(self._parameterNode.GetParameter("CalSeg3D")))
-        CroppingEnabled = bool(strtobool(self._parameterNode.GetParameter("CroppingEnabled")))
-        SegAndCrop = bool(strtobool(self._parameterNode.GetParameter("SegAndCrop")))
-        HeartModelPath = self._parameterNode.GetParameter("HeartModelPath")
-        CalModelPath = self._parameterNode.GetParameter("CalModelPath")
-        ServerURL = self._parameterNode.GetParameter("URL")
 
         # Get Input Volume
         InputVolumeNode = self.ui.inputSelector.currentNode()
 
-        startTime = time.time()
+        # Update GUI
+        self.ProcessingStarted()
+
+        self.startTime = time.time()
         logging.info('Processing started')
 
         try:
 
-            self.logic.StartOperations(InputVolumeNode, self._parameterNode)
-            self.ui.applyButton.setEnabled(True)
+            self.logic.StartOperations(InputVolumeNode, self._parameterNode, self.reportProgress,
+                                       self.ProcessingCompleted)
 
         except Exception as e:
             slicer.util.errorDisplay("Failed to compute results: " + str(e))
             import traceback
             traceback.print_exc()
 
-        stopTime = time.time()
-        logging.info('Processing completed in {0:.2f} seconds'.format(stopTime - startTime))
 
-
+# Helper Classes
 class Signals(qt.QObject):
     finished = qt.Signal()
     progress = qt.Signal(str)
+
+
+# Processes Classes
+class SegmentationProcess(Process):
+
+    def __init__(self, scriptPath, VolumeArray, Local, ServerURL, Partial, ModelPath):
+        Process.__init__(self, scriptPath)
+        self.VolumeArray = VolumeArray  # Numpy array, to use as input for the model.
+        self.ModelPath = ModelPath  # Path to the TF model you'd like to load, as TF Models are not picklable.
+        self.Local = Local
+        self.ServerURL = ServerURL
+        self.Partial = Partial
+        self.Name = f"Segmentation-{os.path.basename(ModelPath)}"
+        self.Output = None
+        self.Segmentation = None
+        self.SegmentationTime = None
+
+    def prepareProcessInput(self):
+        InputData = {
+            'VolumeArray': self.VolumeArray,
+            'ModelPath': self.ModelPath,
+            'Local': self.Local,
+            'ServerURL': self.ServerURL,
+            'Partial': self.Partial,
+        }
+        with open('data.pkl', 'wb') as f:
+            pickle.dump(InputData, f)
+
+    def useProcessOutput(self, processOutput):
+        output = pickle.loads(processOutput)
+        os.remove('data.pkl')
+        self.Output = output
 
 
 #
@@ -496,6 +536,8 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
     Called when the logic class is instantiated. Can be used for initializing member variables.
     """
         ScriptedLoadableModuleLogic.__init__(self)
+        self.FinishedCallback = None
+        self.UpdateCallback = None
         self.Local = None
         self.Partial = None
         self.HeartSegNode = None
@@ -514,6 +556,18 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
         self.Segmentation = None
         self.SegmentationTime = None
         self.Coordinates = None
+        self.VolumeIJKToRAS = None
+        self.VolumeArray = None
+        self.InputVolumeNode = None
+        self.DependenciesChecked = None
+        self.CroppingDone = None
+        self.HeartSegmentationProcess = None
+        self.SegAndCropTime = None
+        self.CalSegNodeDone = None
+        self.CalTime = None
+        self.CalSegDone = None
+        self.VolumeName = None
+        self.Calcifications = None
 
     def setDefaultParameters(self, parameterNode):
         """
@@ -562,6 +616,9 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
         logging.info('Processing completed in {0:.2f} seconds'.format(stopTime - startTime))
 
     def SetDefaultClassVariables(self):
+        """
+        Sets The Class Variable's To Their Default Values, Required After Operations Are Completed
+        """
         self.Local = None
         self.Partial = None
         self.HeartSegNode = None
@@ -577,24 +634,51 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
         self.HeartSegDone = None
         self.HeartSegNodeDone = None
         self.CoordinatesCalculated = None
+        self.CroppingDone = None
         self.Segmentation = None
         self.SegmentationTime = None
         self.Coordinates = None
+        self.VolumeIJKToRAS = None
+        self.VolumeArray = None
+        self.InputVolumeNode = None
+        self.FinishedCallback = None
+        self.UpdateCallback = None
+        self.CroppingDone = None
+        self.HeartSegmentationProcess = None
+        self.SegAndCropTime = None
+        self.CalSegNodeDone = None
+        self.CalTime = None
+        self.CalSegDone = None
+        self.VolumeName = None
+        self.Calcifications = None
 
     def SetParametersFromNode(self, InputVolumeNode, parameterNode):
+        """
+        Saves The Given Parameters in A Class Variable
+        :param InputVolumeNode: VolumeNode To Run The Operations On
+        :param parameterNode: Parameter Node Containing The Required Parameters For The Modules Functionality
+        """
         self.InputVolumeNode = InputVolumeNode
         self.parameterNode = parameterNode
 
     def run(self):
-        print("Hi")
-        self.StartOperations(self.InputVolumeNode, self.parameterNode)
+        """Calls The Start Operation Function, Was Required For Threading"""
+        self.StartOperations(self.InputVolumeNode, self.parameterNode, self.UpdateCallback, self.FinishedCallback)
 
-    def StartOperations(self, InputVolumeNode, parameterNode):
+    def StartOperations(self, InputVolumeNode, parameterNode, UpdateCallback=None, FinishedCallback=None):
+        """
+       Does Preparations Required To Run The Selected Operations in The Module's Widget
+       :param InputVolumeNode: VolumeNode To Run The Operations On
+       :param parameterNode: Parameter Node Containing The Required Parameters For The Modules Functionality
+       :param UpdateCallback: Function To Call For Progress Updates
+       :param FinishedCallback: Function To Call When All Operations Are Completed
+        """
         # Extract All Parameters From The Parameter Node
         self.SegAndCropDone = False
         self.HeartSegDone = False
         self.HeartSegNodeDone = False
         self.CoordinatesCalculated = False
+        self.CroppingDone = False
         self.Local = bool(strtobool(parameterNode.GetParameter("Local")))
         self.Partial = bool(strtobool(parameterNode.GetParameter("Partial")))
         self.HeartSegNode = bool(strtobool(parameterNode.GetParameter("HeartSegNode")))
@@ -607,12 +691,29 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
         self.CalModelPath = parameterNode.GetParameter("CalModelPath")
         self.ServerURL = parameterNode.GetParameter("URL")
 
+        # Store Volume Node
+        self.InputVolumeNode = InputVolumeNode
+
+        # Get Volume Name
+        self.VolumeName = self.InputVolumeNode.GetName()
+
         # Get IJKToRAS Matrix
         # Required to get some data from the volume (spacing, margin, etc.)
         # This data is used after that to show the segmentation node after finished the processing
-        VolumeIJKToRAS = vtk.vtkMatrix4x4()
-        InputVolumeNode.GetIJKToRASMatrix(VolumeIJKToRAS)
+        self.VolumeIJKToRAS = vtk.vtkMatrix4x4()
+        InputVolumeNode.GetIJKToRASMatrix(self.VolumeIJKToRAS)
 
+        # Store Callbacks
+        self.UpdateCallback = UpdateCallback
+        self.FinishedCallback = FinishedCallback
+
+        # Initialize Variables
+        self.Segmentation = []
+        self.SegmentationTime = 0
+        self.Coordinates = []
+        self.VolumeArray = np.array(slicer.util.arrayFromVolume(InputVolumeNode), copy=True)
+
+        # Online Prerequisites Check
         if not self.Local:
             try:
                 request = requests.get(self.ServerURL)
@@ -621,14 +722,13 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
                 slicer.util.errorDisplay("Couldn't Connect To The Server")
                 raise ValueError("Couldn't Connect To The Server")
 
+        self.RunOperations()
+
+    def RunOperations(self):
+        """
+        Runs The Selected Operations in The Module's Widget, Recalled Till All Operations Are Completed
+        """
         try:
-
-            # Initialize Variables
-            self.Segmentation = []
-            self.SegmentationTime = 0
-            self.Coordinates = []
-            VolumeArray = np.array(slicer.util.arrayFromVolume(InputVolumeNode), copy=True)
-
             # CLI Tests Start
             # OutputVolume = []
             # self.logic.CLITest(VolumeArray, self.LocalProcessing, ServerURL, Partial, HeartModelPath,
@@ -638,58 +738,87 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
             # CLI Tests End
 
             # Check For Dependencies & Install Missing Ones
-            if self.Local:
+            if self.Local and not self.DependenciesChecked:
                 self.CheckDependencies()
+                self.DependenciesChecked = True
 
             # Compute output
-            if self.SegAndCrop and not self.Local:
+            if not (self.HeartSegDone or self.SegAndCropDone):
+                if self.SegAndCrop and not self.Local and not self.SegAndCropDone:
+                    self.SegmentationProcessWrapper("SegAndCrop.slicer.py", self.SegAndCropCompleted, self.VolumeArray,
+                                                    self.Local, self.ServerURL, self.Partial, self.HeartModelPath)
 
-                self.Coordinates = self.SegmentAndCrop(VolumeArray, self.Local,
-                                                       self.ServerURL, self.HeartModelPath)
-                self.SegAndCropDone = True
+                elif self.HeartSegNode or self.CroppingEnabled and not self.HeartSegDone and \
+                        (self.DependenciesChecked == self.Local):
+                    self.SegmentationProcessWrapper("Segmentation.slicer.py", self.HeartSegmentationCompleted,
+                                                    self.VolumeArray, self.Local, self.ServerURL, self.Partial,
+                                                    self.HeartModelPath)
 
-            elif self.HeartSegNode or self.CroppingEnabled:
-                self.Segmentation, self.SegmentationTime = self.Segment(VolumeArray, self.Local,
-                                                                        self.ServerURL, self.Partial, True,
-                                                                        self.HeartModelPath)
-                self.HeartSegDone = True
-                logging.info('Segmentation completed in {0:.2f} seconds'.format(self.SegmentationTime))
+            if self.CroppingEnabled and not self.SegAndCrop and self.HeartSegDone and not self.CoordinatesCalculated:
 
-            if not self.Partial and self.HeartSegNode:
-                self.CreateSegmentationNode(self.Segmentation, "Heart", VolumeIJKToRAS, self.HeartSeg3D)
-                self.HeartSegNodeDone = True
-
-            if self.CroppingEnabled and not self.SegAndCrop and self.HeartSegDone:
                 self.Coordinates = self.GetCoordinates(self.Segmentation, self.Partial, 20)
                 self.CoordinatesCalculated = True
 
-            elif self.CroppingEnabled and self.SegAndCrop:
+            elif self.CroppingEnabled and self.SegAndCrop and not self.CoordinatesCalculated and self.SegAndCropDone:
                 # Add margin to the segmentation output
-                self.Coordinates = self.AddMargin(Volume=VolumeArray, ROICoordinates=self.Coordinates, Margin=20)
+                self.Coordinates = self.AddMargin(Volume=self.VolumeArray, ROICoordinates=self.Coordinates, Margin=20)
                 self.CoordinatesCalculated = True
 
-            if self.CroppingEnabled or self.SegAndCrop and self.CoordinatesCalculated:
+            # Crop The Volume
+            if self.CroppingEnabled or self.SegAndCrop and self.CoordinatesCalculated and not self.CroppingDone:
                 logging.info(f"The Cropping Coordinates Are Z->{self.Coordinates[0]}:{self.Coordinates[1]}, "
                              f"X->{self.Coordinates[2]}:{self.Coordinates[3]}, "
                              f"Y->{self.Coordinates[4]}:{self.Coordinates[5]}")
 
-                NewVolume = self.CropVolume(Volume=VolumeArray, Coordinates=self.Coordinates)
-                slicer.util.updateVolumeFromArray(InputVolumeNode, NewVolume)
+                NewVolume = self.CropVolume(Volume=self.VolumeArray, Coordinates=self.Coordinates)
+                slicer.util.updateVolumeFromArray(self.InputVolumeNode, NewVolume)
                 logging.info(f"Cropped!")
+                self.CroppingDone = True
 
-            # Recenter & Fit The Volume
-            # self.RecenterVolume()
+            # Display The Heart Segmentation
+            if not self.Partial and self.HeartSegNode and not self.HeartSegNodeDone \
+                    and self.HeartSegDone and (self.CroppingDone == self.CroppingEnabled):
+
+                if self.CroppingEnabled:
+                    self.Segmentation = self.CropVolume(Volume=self.Segmentation, Coordinates=self.Coordinates)
+                self.CreateSegmentationNode(self.Segmentation, f'{self.VolumeName}-Heart', self.VolumeIJKToRAS, self.HeartSeg3D)
+                self.HeartSegNodeDone = True
+
+            # Find Calcifications
+            if self.CalSegNode and not self.CalSegDone and (self.SegAndCrop == self.SegAndCropDone) and \
+                    (self.HeartSegNode == self.HeartSegNodeDone) and (self.CroppingEnabled == self.CroppingDone):
+
+                self.SegmentationProcessWrapper("Segmentation.slicer.py", self.CalSegmentationCompleted,
+                                                self.VolumeArray, self.Local, self.ServerURL, self.Partial,
+                                                self.CalModelPath)
+
+            # Create Segmentation Node of The Calcifications
+            if self.CalSegNode and self.CalSegDone and not self.CalSegNodeDone:
+
+                self.CreateSegmentationNode(self.Calcifications, f'{self.VolumeName}-Calcifications',
+                                            self.VolumeIJKToRAS, self.CalSeg3D)
+                self.CalSegNodeDone = True
+
+            # Calculate Calcifications Volume And Call The Update Callback To Display It
+            if self.CalSegNodeDone:
+
+                pass
 
         except Exception as e:
             slicer.util.errorDisplay("Failed to compute results: " + str(e))
             import traceback
             traceback.print_exc()
 
-        self.SetDefaultClassVariables()
+        if (self.SegAndCrop == self.SegAndCropDone) and (self.HeartSegNode == self.HeartSegNodeDone) \
+                and (self.CroppingEnabled == self.CroppingDone) and (self.CalSegNode == self.CalSegNodeDone):
+            self.FinishedCallback()
+            self.SetDefaultClassVariables()
 
     def CLITest(self, inputVolume, LocalProcessing=True, ProcessingURL="http://localhost:5000", Partial=True,
                 ModelPath=None, outputVolume=None):
-
+        """
+        Function Used To Run Segment The Given Volume Using Slicer's CLI Node, Still A Stub, Not Working
+        """
         import time
         startTime = time.time()
         logging.info('Processing started')
@@ -718,7 +847,14 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
 
     def SegmentAndCrop(self, inputVolume, Local=True, ProcessingURL="http://localhost:5000",
                        ModelPath=None):
-
+        """
+       Gets The Coordinates of The Bounding Box of The Result of Segmenting THe Given Volume
+       :param inputVolume: NumPy Array of The Volume
+       :param Local: It True, Process Data Locally
+       :param ProcessingURL: If Local is Set To False, Send The Volume To This URL For Processing
+       :param ModelPath: Path of The TensorFlow Model Used in Segmentation
+       :returns Coordinates: Array Containing The Coordinates of The Bounding Box
+        """
         # TODO: Receive Routes From Caller
         if inputVolume is None:
             raise ValueError("Input volume is invalid")
@@ -760,8 +896,19 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
 
         return Coordinates
 
-    def Segment(self, inputVolume, LocalProcessing=True, ProcessingURL="http://localhost:5000", Partial=True,
+    def Segment(self, inputVolume, LocalProcessing=True, ServerURL="http://localhost:5000", Partial=True,
                 ReturnTime=True, ModelPath=None):
+        """
+       Applies A TensorFlow Segmentation Model To The Given Volume
+       :param inputVolume: NumPy Array of The Volume
+       :param LocalProcessing: It True, Process Data Locally
+       :param ServerURL: If Local is Set To False, Send The Volume To This URL For Processing
+       :param Partial: If True, Segments Only 3 Slices in Each View, Used in Cropping
+       :param ReturnTime: Returns The Time Taken by The Function
+       :param ModelPath: Path of The TensorFlow Model Used in Segmentation
+       :returns SegmentedSlices: Array Containing The Segmented Volume
+       :returns SegmentTime: Time Taken By The Function
+        """
         # TODO: Receive Routes From Caller
         if inputVolume is None:
             raise ValueError("Input volume is invalid")
@@ -782,10 +929,9 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
             SegmentedSlices = [[], [], []]
             RawSliceArrays, files, ShiftValues = self.GetSampleSlicesFromVolume(VolumeArray=VolumeArray,
                                                                                 Local=LocalProcessing)
-
             if not LocalProcessing:
                 # Send Data To Server For Processing
-                SliceSendReq = requests.post(ProcessingURL + "/segment/slices", files=files, data=ShiftValues)
+                SliceSendReq = requests.post(ServerURL + "/segment/slices", files=files, data=ShiftValues)
                 Response = BytesIO(SliceSendReq.content)
                 Response.seek(0)
                 Data = np.load(Response)
@@ -811,7 +957,7 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
                 CompressedVolume = BytesIO()
                 np.savez_compressed(CompressedVolume, Volume=VolumeArray)
                 CompressedVolume.seek(0)
-                SliceSendReq = requests.post(ProcessingURL + "/segment/volume", files={"Volume": CompressedVolume})
+                SliceSendReq = requests.post(ServerURL + "/segment/volume", files={"Volume": CompressedVolume})
                 Response = BytesIO(SliceSendReq.content)
                 Response.seek(0)
                 Data = np.load(Response)
@@ -842,8 +988,64 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
         else:
             return SegmentedSlices
 
-    def CheckDependencies(self):
+    def SegmentationProcessWrapper(self, ScriptName, CompletedCallback, VolumeArray, Local=None,
+                                   ServerURL=None, Partial=None, HeartModelPath=None):
+        """
+       Starts The Given Script Located in Resources/ProcessScripts Folder in a Separate Process
+       :param ScriptName: Name of The Script To Run
+       :param CompletedCallback: Function To Call When The Process is Completed
+       :param VolumeArray: NumPy Array of The Volume
+       :param Local: It True, Process Data Locally
+       :param ServerURL: If Local is Set To False, Send The Volume To This URL For Processing
+       :param Partial: If True, Segments Only 3 Slices in Each View, Used in Cropping
+       :param HeartModelPath: Path of The TensorFlow Model Used in Segmentation
+       """
+        scriptFolder = slicer.modules.cascoremodule.path.replace('CaScoreModule.py', '/Resources/ProcessScripts/')
+        scriptPath = os.path.join(scriptFolder, ScriptName)
+        self.HeartSegmentationProcess = SegmentationProcess(scriptPath, VolumeArray, Local,
+                                                            ServerURL, Partial,
+                                                            HeartModelPath)
+        logic = ProcessesLogic(completedCallback=lambda: CompletedCallback())
+        logic.addProcess(self.HeartSegmentationProcess)
+        logic.run()
+        logging.info('Segmentation Process Started')
 
+    def HeartSegmentationCompleted(self):
+        """
+        Callback Function Called When Heart Segmentation Process is Completed, Sets Completion Variables
+        And Extracts Data
+        """
+        self.HeartSegDone = True
+        self.Segmentation = self.HeartSegmentationProcess.Output["Segmentation"]
+        self.SegmentationTime = self.HeartSegmentationProcess.Output["SegmentationTime"]
+        logging.info('Heart Segmentation completed in {0:.2f} seconds'.format(self.SegmentationTime))
+        self.RunOperations()
+
+    def CalSegmentationCompleted(self):
+        """
+        Callback Function Called When Heart Calcification's Segmentation Process is Completed, Sets Completion Variables
+        And Extracts Data
+        """
+        self.CalSegDone = True
+        self.Calcifications = self.HeartSegmentationProcess.Output["Segmentation"]
+        self.CalTime = self.HeartSegmentationProcess.Output["SegmentationTime"]
+        logging.info('Calcifications Segmented in {0:.2f} seconds'.format(self.CalTime))
+        self.RunOperations()
+
+    def SegAndCropCompleted(self):
+        """
+        Callback Function Called When SegAndCrop Process is Completed, Sets Completion Variables And Extracts Data
+        """
+        self.SegAndCropDone = True
+        self.Coordinates = self.HeartSegmentationProcess.Output["Coordinates"]
+        self.SegAndCropTime = self.HeartSegmentationProcess.Output["SegAndCropTime"]
+        logging.info('Segmentation & Coordinates Calculation Completed in {0:.2f} Seconds'.format(self.SegAndCropTime))
+        self.RunOperations()
+
+    def CheckDependencies(self):
+        """
+        Installs Missing Pip Packages
+        """
         # Install Dependencies if Not Detected
         Scikit = importlib.util.find_spec("scikit-image")
         TensorFlow = importlib.util.find_spec("tensorflow")
@@ -923,11 +1125,12 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
 
         # Add Margin
         z1 = (ROICoordinates[0] - Margin) if (ROICoordinates[0] - Margin >= 0) else 0
-        z2 = (ROICoordinates[1] + Margin) if (ROICoordinates[1] + Margin >= 0) else Volume.shape[0]
+        z2 = (ROICoordinates[1] + Margin) if (ROICoordinates[1] + Margin < Volume.shape[0]) else Volume.shape[0]
         x1 = (ROICoordinates[2] - Margin) if (ROICoordinates[2] - Margin >= 0) else 0
-        x2 = (ROICoordinates[3] + Margin) if (ROICoordinates[3] + Margin >= 0) else Volume.shape[1]
+        x2 = (ROICoordinates[3] + Margin) if (ROICoordinates[3] + Margin < Volume.shape[1]) else Volume.shape[1]
         y1 = (ROICoordinates[4] - Margin) if (ROICoordinates[4] - Margin >= 0) else 0
-        y2 = (ROICoordinates[5] + Margin) if (ROICoordinates[5] + Margin >= 0) else Volume.shape[2]
+        y2 = (ROICoordinates[5] + Margin) if (ROICoordinates[5] + Margin < Volume.shape[2]) else Volume.shape[2]
+
         Coordinates = [z1, z2, x1, x2, y1, y2]
 
         return Coordinates
@@ -957,10 +1160,18 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
         return CroppedVolume
 
     def GetSampleSlicesFromVolume(self, VolumeArray=None, Local=True):
-
+        """
+        Extracts The 3 Middle Slices From Each View (Axial, Sagittal & Coronal)
+        :param VolumeArray: Volume To Extract Slices From
+        :param Local: If True, Compresses The Slices Into a PNG For Online Processing
+        :return RawSliceArrays: List of 3 NumPy NDArrays Containing Slices From Axial, Sagittal & Coronal Views
+        :return SliceImages: List of Images Contacting PNG Data of The Slices in The Three Views
+        :return ShiftValues: Values Needed To Reconstruct The Original Slice Array After
+        Decompressing Them From Images To NumPy Arrays
+        """
         # Axial, Sagittal, Coronal
         Names = ["Ax1", "Ax2", "Ax3", "Sag1", "Sag2", "Sag3", "Cor1", "Cor2", "Cor3"]
-        files = {}
+        SliceImages = {}
         ShiftValues = {}
         RawSliceArrays = [[], [], []]
         VolumeShape = VolumeArray.shape
@@ -998,9 +1209,9 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
                     SliceBytes = BytesIO()
                     SliceImg.save(SliceBytes, format="PNG")
                     SliceBytes.seek(0, 0)
-                    files[Names.pop(0)] = SliceBytes
+                    SliceImages[Names.pop(0)] = SliceBytes
 
-        return RawSliceArrays, files, ShiftValues
+        return RawSliceArrays, SliceImages, ShiftValues
 
 
 #
