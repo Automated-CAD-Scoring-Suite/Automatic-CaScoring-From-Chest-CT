@@ -410,6 +410,12 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self._parameterNode.SetParameter("Partial", "false")
             self.ui.PartialSegmentation.setEnabled(False)
 
+        if strtobool(self._parameterNode.GetParameter("CalSegNode")):
+            self.ui.CalSeg3D.setEnabled(True)
+        else:
+            self.ui.CalSeg3D.setEnabled(False)
+            self._parameterNode.SetParameter("CalSeg3D", "false")
+
         self.updateGUIFromParameterNode()
 
     def RecenterVolume(self):
