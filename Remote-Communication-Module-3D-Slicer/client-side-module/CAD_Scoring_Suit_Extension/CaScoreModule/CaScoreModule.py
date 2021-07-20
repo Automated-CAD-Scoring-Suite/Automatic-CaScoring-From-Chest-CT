@@ -550,6 +550,9 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
         self.DependenciesChecked = None
         self.CroppingDone = None
         self.HeartSegmentationProcess = None
+        self.SegAndCropTime = None
+        self.CalSegNodeDone = None
+        self.CalTime = None
 
     def setDefaultParameters(self, parameterNode):
         """
@@ -624,6 +627,9 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
         self.UpdateCallback = None
         self.CroppingDone = None
         self.HeartSegmentationProcess = None
+        self.SegAndCropTime = None
+        self.CalSegNodeDone = None
+        self.CalTime = None
 
     def SetParametersFromNode(self, InputVolumeNode, parameterNode):
         self.InputVolumeNode = InputVolumeNode
