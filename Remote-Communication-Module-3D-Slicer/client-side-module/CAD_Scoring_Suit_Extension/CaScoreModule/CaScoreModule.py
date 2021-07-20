@@ -559,7 +559,7 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
         self.VolumeIJKToRAS = None
         self.VolumeArray = None
         self.InputVolumeNode = None
-        self.DependenciesChecked = None
+        self.DependenciesChecked = False
         self.CroppingDone = None
         self.HeartSegmentationProcess = None
         self.SegAndCropTime = None
@@ -680,6 +680,7 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
         self.CoordinatesCalculated = False
         self.CroppingDone = False
         self.CalSegDone = False
+        self.CalSegNodeDone = False
         self.Local = bool(strtobool(parameterNode.GetParameter("Local")))
         self.Partial = bool(strtobool(parameterNode.GetParameter("Partial")))
         self.HeartSegNode = bool(strtobool(parameterNode.GetParameter("HeartSegNode")))
@@ -743,30 +744,32 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
                 self.CheckDependencies()
                 self.DependenciesChecked = True
 
-            # Compute output
+            # Get The Heart Segmentation/Coordinates
             if not (self.HeartSegDone or self.SegAndCropDone):
                 if self.SegAndCrop and not self.Local and not self.SegAndCropDone:
+                    # Without Receiving The Segmentation, Get The Bounding Box Coordinates
                     self.SegmentationProcessWrapper("SegAndCrop.slicer.py", self.SegAndCropCompleted, self.VolumeArray,
                                                     self.Local, self.ServerURL, self.Partial, self.HeartModelPath)
 
-                elif self.HeartSegNode or self.CroppingEnabled and not self.HeartSegDone and \
+                elif (self.HeartSegNode or self.CroppingEnabled) and not self.HeartSegDone and \
                         (self.DependenciesChecked == self.Local):
+                    # Get The Segmentation
                     self.SegmentationProcessWrapper("Segmentation.slicer.py", self.HeartSegmentationCompleted,
                                                     self.VolumeArray, self.Local, self.ServerURL, self.Partial,
                                                     self.HeartModelPath)
-
+            # Get Cropping Coordinates & Add Margins
             if self.CroppingEnabled and not self.SegAndCrop and self.HeartSegDone and not self.CoordinatesCalculated:
-
+                # Calculate Coordinates & Add Margin
                 self.Coordinates = self.GetCoordinates(self.Segmentation, self.Partial, 20)
                 self.CoordinatesCalculated = True
 
             elif self.CroppingEnabled and self.SegAndCrop and not self.CoordinatesCalculated and self.SegAndCropDone:
-                # Add margin to the segmentation output
+                # Add A Margin Only To The Coordinates Received From The Server
                 self.Coordinates = self.AddMargin(Volume=self.VolumeArray, ROICoordinates=self.Coordinates, Margin=20)
                 self.CoordinatesCalculated = True
 
             # Crop The Volume
-            if ( self.CroppingEnabled or self.SegAndCrop) and self.CoordinatesCalculated and not self.CroppingDone:
+            if (self.CroppingEnabled or self.SegAndCrop) and self.CoordinatesCalculated and not self.CroppingDone:
                 logging.info(f"The Cropping Coordinates Are Z->{self.Coordinates[0]}:{self.Coordinates[1]}, "
                              f"X->{self.Coordinates[2]}:{self.Coordinates[3]}, "
                              f"Y->{self.Coordinates[4]}:{self.Coordinates[5]}")
@@ -781,21 +784,21 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
                     and self.HeartSegDone and (self.CroppingDone == self.CroppingEnabled):
 
                 if self.CroppingEnabled:
+                    # If Cropping is Enabled, Also Crop The Segmentation
                     self.Segmentation = self.CropVolume(Volume=self.Segmentation, Coordinates=self.Coordinates)
-                self.CreateSegmentationNode(self.Segmentation, f'{self.VolumeName}-Heart', self.VolumeIJKToRAS, self.HeartSeg3D)
+                self.CreateSegmentationNode(self.Segmentation, f'{self.VolumeName}-Heart', self.VolumeIJKToRAS,
+                                            self.HeartSeg3D)
                 self.HeartSegNodeDone = True
 
             # Find Calcifications
             if self.CalSegNode and not self.CalSegDone and (self.SegAndCrop == self.SegAndCropDone) and \
                     (self.HeartSegNode == self.HeartSegNodeDone) and (self.CroppingEnabled == self.CroppingDone):
-
                 self.SegmentationProcessWrapper("Segmentation.slicer.py", self.CalSegmentationCompleted,
                                                 self.VolumeArray, self.Local, self.ServerURL, self.Partial,
                                                 self.CalModelPath)
 
             # Create Segmentation Node of The Calcifications
             if self.CalSegNode and self.CalSegDone and not self.CalSegNodeDone:
-
                 self.CreateSegmentationNode(self.Calcifications, f'{self.VolumeName}-Calcifications',
                                             self.VolumeIJKToRAS, self.CalSeg3D)
                 self.CalSegNodeDone = True
@@ -1110,7 +1113,7 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
         ROICoordinates = GetCoords(Segmentation, Partial)
 
         # Add Margin
-        Coordinates = self.AddMargin(Segmentation, ROICoordinates, Margin)
+        Coordinates = self.AddMargin(self.VolumeArray, ROICoordinates, Margin)
 
         return Coordinates
 
