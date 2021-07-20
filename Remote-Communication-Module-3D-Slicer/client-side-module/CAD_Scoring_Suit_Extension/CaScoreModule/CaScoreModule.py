@@ -699,7 +699,7 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
             # CLI Tests End
 
             # Check For Dependencies & Install Missing Ones
-            if self.Local:
+            if self.Local and not self.DependenciesChecked:
                 self.CheckDependencies()
                 self.DependenciesChecked = True
 
