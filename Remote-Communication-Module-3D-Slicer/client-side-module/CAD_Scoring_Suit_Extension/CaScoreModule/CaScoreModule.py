@@ -679,6 +679,7 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
         self.HeartSegNodeDone = False
         self.CoordinatesCalculated = False
         self.CroppingDone = False
+        self.CalSegDone = False
         self.Local = bool(strtobool(parameterNode.GetParameter("Local")))
         self.Partial = bool(strtobool(parameterNode.GetParameter("Partial")))
         self.HeartSegNode = bool(strtobool(parameterNode.GetParameter("HeartSegNode")))
@@ -765,7 +766,7 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
                 self.CoordinatesCalculated = True
 
             # Crop The Volume
-            if self.CroppingEnabled or self.SegAndCrop and self.CoordinatesCalculated and not self.CroppingDone:
+            if ( self.CroppingEnabled or self.SegAndCrop) and self.CoordinatesCalculated and not self.CroppingDone:
                 logging.info(f"The Cropping Coordinates Are Z->{self.Coordinates[0]}:{self.Coordinates[1]}, "
                              f"X->{self.Coordinates[2]}:{self.Coordinates[3]}, "
                              f"Y->{self.Coordinates[4]}:{self.Coordinates[5]}")
@@ -801,7 +802,6 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
 
             # Calculate Calcifications Volume And Call The Update Callback To Display It
             if self.CalSegNodeDone:
-
                 pass
 
         except Exception as e:
