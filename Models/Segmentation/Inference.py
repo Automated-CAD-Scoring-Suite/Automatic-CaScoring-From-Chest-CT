@@ -70,16 +70,16 @@ class Infer:
         src = np.squeeze(src, 0)
         src = np.squeeze(src, -1)
 
-        # Thresholding output Prediction
-        src[src < self.threshold] = 0.0
-        src[src >= self.threshold] = 1.0
-
         # Upscale to the Input Shape
         src = resize(src, output_shape=self.data_shape)
 
         # Fix Return Shape for Slicer
         if self.axial_first:
             src = np.moveaxis(src, -1, 0)
+
+        # Thresholding output Prediction
+        src[src < self.threshold] = 0.0
+        src[src >= self.threshold] = 1.0
 
         return src
 
