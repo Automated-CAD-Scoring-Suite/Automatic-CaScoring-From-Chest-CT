@@ -1090,7 +1090,7 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
         Installs Missing Pip Packages
         """
         # Install Dependencies if Not Detected
-        Scikit = importlib.util.find_spec("scikit-image")
+        Scikit = importlib.util.find_spec("skimage")
         TensorFlow = importlib.util.find_spec("tensorflow")
 
         if Scikit is None:
