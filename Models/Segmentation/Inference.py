@@ -105,6 +105,19 @@ class Infer:
         return src
 
 
+def ThresholdCAC(scan: np.ndarray, threshold: float = 130) -> np.ndarray:
+    src = np.copy(scan)
+    src[src < threshold] = 0
+    src[src >= threshold] = 1
+    return scan
+
+
+def QuantifyCAC(scan_threshold: np.ndarray, pred: np.ndarray, voxel_vol: float) -> float:
+    masked_out = scan_threshold * pred
+    candidate_voxels = np.count_nonzero(masked_out)
+    return candidate_voxels*voxel_vol
+
+
 if __name__ == '__main__':
     import nibabel as nib
 
