@@ -390,11 +390,14 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.ui.PartialSegmentation.setEnabled(False)
             self._parameterNode.SetParameter("SegAndCrop", "false")
             self.ui.SegAndCrop.setEnabled(False)
+            self.ui.CalSegNode.setEnabled(True)
             self.ui.HeartSeg3D.setEnabled(True)
         else:
             self.ui.PartialSegmentation.setEnabled(True)
             self.ui.SegAndCrop.setEnabled(True)
             self.ui.HeartSeg3D.setEnabled(False)
+            self.ui.CalSegNode.setEnabled(False)
+            self._parameterNode.SetParameter("CalSegNode", "false")
             self._parameterNode.SetParameter("HeartSeg3D", "false")
 
         # Disable Partial Segmentation Option If Cropping is Disabled
