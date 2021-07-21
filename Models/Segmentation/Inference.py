@@ -30,12 +30,18 @@ class Infer:
 
         self.model = tf.keras.models.load_model(self.path)
 
-        # if torch.cuda.is_available():
-        #     logging.info("GPU Processing")
-        #     self.model.load_state_dict(torch.load(self.path), strict=False)
-        # else:
-        #     logging.info("CPU Processing")
-        #     self.model.load_state_dict(torch.load(self.path, map_location=torch.device('cpu')), strict=False)
+        # Define GPU Usage by the Server
+        gpus = tf.config.list_physical_devices('GPU')
+        if gpus:
+            try:
+                # Currently, memory growth needs to be the same across GPUs
+                for gpu in gpus:
+                    tf.config.experimental.set_memory_growth(gpu, True)
+                logical_gpus = tf.config.experimental.list_logical_devices('GPU')
+                print(len(gpus), "Physical GPUs,", len(logical_gpus), "Logical GPUs")
+            except RuntimeError as e:
+                # Memory growth must be set before GPUs have been initialized
+                print(e)
 
     def predict(self, data: np.ndarray):
         slices = self.__prepare_data(data)
