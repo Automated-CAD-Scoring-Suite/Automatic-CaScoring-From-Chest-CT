@@ -109,7 +109,7 @@ def ThresholdCAC(scan: np.ndarray, threshold: float = 130) -> np.ndarray:
     src = np.copy(scan)
     src[src < threshold] = 0
     src[src >= threshold] = 1
-    return scan
+    return src
 
 
 def QuantifyCAC(scan_threshold: np.ndarray, pred: np.ndarray, voxel_vol: float) -> float:
