@@ -195,13 +195,13 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.LocalProcessingRadio.toggled.connect(self.ProcessingLocationSelect)
 
         # Checkboxes
-        self.ui.CroppingEnabled.toggled.connect(self.AllowableOperations)
-        self.ui.PartialSegmentation.toggled.connect(self.AllowableOperations)
-        self.ui.HeartSegNode.toggled.connect(self.AllowableOperations)
-        self.ui.HeartSeg3D.toggled.connect(self.AllowableOperations)
-        self.ui.CalSegNode.toggled.connect(self.AllowableOperations)
-        self.ui.CalSeg3D.toggled.connect(self.AllowableOperations)
-        self.ui.SegAndCrop.toggled.connect(self.AllowableOperations)
+        self.ui.CroppingEnabled.toggled.connect(self.AllowedOperations)
+        self.ui.PartialSegmentation.toggled.connect(self.AllowedOperations)
+        self.ui.HeartSegNode.toggled.connect(self.AllowedOperations)
+        self.ui.HeartSeg3D.toggled.connect(self.AllowedOperations)
+        self.ui.CalSegNode.toggled.connect(self.AllowedOperations)
+        self.ui.CalSeg3D.toggled.connect(self.AllowedOperations)
+        self.ui.SegAndCrop.toggled.connect(self.AllowedOperations)
 
         # Make sure parameter node is initialized (needed for module reload)
         self.initializeParameterNode()
@@ -307,6 +307,7 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.ui.HeartSeg3D.checked = strtobool(self._parameterNode.GetParameter("HeartSeg3D"))
             self.ui.CalSegNode.checked = strtobool(self._parameterNode.GetParameter("CalSegNode"))
             self.ui.CalSeg3D.checked = strtobool(self._parameterNode.GetParameter("CalSeg3D"))
+            self.ui.DeepCal.checked = strtobool(self._parameterNode.GetParameter("DeepCal"))
             self.ui.SegAndCrop.checked = strtobool(self._parameterNode.GetParameter("SegAndCrop"))
 
         self.ui.UseProcesses.checked = strtobool(self._parameterNode.GetParameter("UseProcesses"))
@@ -350,6 +351,7 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self._parameterNode.SetParameter("HeartModelPath", self.ui.HeartModelPath.currentPath)
         self._parameterNode.SetParameter("CalModelPath", self.ui.CalModelPath.currentPath)
         self._parameterNode.SetParameter("UseProcesses", "true" if self.ui.UseProcesses.checked else "false")
+        self._parameterNode.SetParameter("DeepCal", "true" if self.ui.DeepCal.checked else "false")
 
         self._parameterNode.EndModify(wasModified)
 
@@ -374,9 +376,9 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.ui.OnlineSettings.setEnabled(True)
             self.ui.OnlineSettings.collapsed = False
 
-        self.AllowableOperations()
+        self.AllowedOperations()
 
-    def AllowableOperations(self):
+    def AllowedOperations(self):
         """
         Handles Disabling/Enabling The Options of The Extenstion Based onUser Selection
         """
@@ -412,8 +414,10 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         if strtobool(self._parameterNode.GetParameter("CalSegNode")):
             self.ui.CalSeg3D.setEnabled(True)
+            self.ui.DeepCal.setEnabled(True)
         else:
             self.ui.CalSeg3D.setEnabled(False)
+            self.ui.DeepCal.setEnabled(False)
             self._parameterNode.SetParameter("CalSeg3D", "false")
 
         self.updateGUIFromParameterNode()
@@ -620,6 +624,7 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
         self.CalSegDone = None
         self.VolumeName = None
         self.Calcifications = None
+        self.DeepCal = None
         self.UseProcesses = True
         self.HeartSegRoutes = {
             'Partial': "/segment/slices",
@@ -644,6 +649,8 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
                 parameterNode.SetParameter("HeartModelPath", Path)
         if not parameterNode.GetParameter("UseProcesses"):
             parameterNode.SetParameter("UseProcesses", "true")
+        if not parameterNode.GetParameter("DeepCal"):
+            parameterNode.SetParameter("DeepCal", "true")
 
     def processOld(self, inputVolume, outputVolume, imageThreshold, invert=False, showResult=True):
         """
@@ -715,6 +722,7 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
         self.VolumeName = None
         self.Calcifications = None
         self.UseProcesses = True
+        self.DeepCal = None
 
     def SetParametersFromNode(self, InputVolumeNode, parameterNode):
         """
@@ -754,6 +762,7 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
         self.CroppingEnabled = bool(strtobool(parameterNode.GetParameter("CroppingEnabled")))
         self.SegAndCrop = bool(strtobool(parameterNode.GetParameter("SegAndCrop")))
         self.UseProcesses = bool(strtobool(parameterNode.GetParameter("UseProcesses")))
+        self.DeepCal = bool(strtobool(parameterNode.GetParameter("DeepCal")))
         self.HeartModelPath = parameterNode.GetParameter("HeartModelPath")
         self.CalModelPath = parameterNode.GetParameter("CalModelPath")
         self.ServerURL = parameterNode.GetParameter("URL")
@@ -842,6 +851,7 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
                                                                                 self.ServerURL, self.HeartSegRoutes,
                                                                                 self.Partial, True, self.HeartModelPath)
                         self.HeartSegDone = True
+
             if self.HeartSegDone:
                 self.UpdateCallback(1, "Completed in {0:.2f} Seconds".format(self.SegmentationTime))
             elif self.SegAndCropDone:
@@ -891,20 +901,22 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
             if self.CalSegNode and not self.CalSegDone and (self.SegAndCrop == self.SegAndCropDone) and \
                     (self.HeartSegNode == self.HeartSegNodeDone) and (self.CroppingEnabled == self.CroppingDone):
                 if self.Local:
-                    self.UpdateCallback(3, "Segmenting Locally")
+                    self.UpdateCallback(3, "Finding Calcifications Locally")
                 else:
                     self.UpdateCallback(3, "Sending Volume To The Server")
-                if self.UseProcesses:
-                    self.SegmentationProcessWrapper("Segmentation.slicer.py", self.CalSegmentationCompleted,
-                                                    self.VolumeArray, self.Local, self.ServerURL, self.CalSegRoutes,
-                                                    self.Partial, self.CalModelPath)
+                if self.DeepCal:
+                    if self.UseProcesses:
+                        self.SegmentationProcessWrapper("Segmentation.slicer.py", self.CalSegmentationCompleted,
+                                                        self.VolumeArray, self.Local, self.ServerURL, self.CalSegRoutes,
+                                                        self.Partial, self.CalModelPath)
+                    else:
+                        self.Calcifications, self.CalTime = self.Segment(self.VolumeArray, self.Local,
+                                                                         self.ServerURL, self.CalSegRoutes,
+                                                                         self.Partial, True, self.CalModelPath)
+                        self.CalSegDone = True
+                        self.UpdateCallback(3, "Completed in {0:.2f} Seconds".format(self.CalTime))
                 else:
-                    self.Calcifications, self.CalTime = self.Segment(self.VolumeArray, self.Local,
-                                                                     self.ServerURL, self.CalSegRoutes,
-                                                                     self.Partial, True, self.CalModelPath)
-                    self.CalSegDone = True
-                    self.UpdateCallback(3, "Completed in {0:.2f} Seconds".format(self.CalTime))
-
+                    pass
             # Create Segmentation Node of The Calcifications
             if self.CalSegNode and self.CalSegDone and not self.CalSegNodeDone:
                 self.CreateSegmentationNode(self.Calcifications, f'{self.VolumeName}-Calcifications',

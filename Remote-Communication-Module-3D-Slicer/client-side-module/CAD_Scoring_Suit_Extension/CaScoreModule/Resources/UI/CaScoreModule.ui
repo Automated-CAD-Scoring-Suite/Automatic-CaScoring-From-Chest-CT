@@ -72,6 +72,49 @@
       <bool>false</bool>
      </property>
      <layout class="QGridLayout" name="gridLayout">
+      <item row="10" column="0" colspan="2">
+       <widget class="QCheckBox" name="UseProcesses">
+        <property name="text">
+         <string>Use A Seperate Process For Intensive Operations</string>
+        </property>
+        <property name="checked">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item row="5" column="0" colspan="2">
+       <widget class="QCheckBox" name="HeartSegNode">
+        <property name="toolTip">
+         <string>If Checked, Creates A Segmentation Node Marking The Heart, Doesn't Work With Partial Segmentation</string>
+        </property>
+        <property name="text">
+         <string>Create Heart Segmentation Node</string>
+        </property>
+       </widget>
+      </item>
+      <item row="7" column="0" colspan="2">
+       <widget class="QCheckBox" name="CalSegNode">
+        <property name="toolTip">
+         <string>If Checked, Creates A Segmentation Node Showing Found Calcifications In Addition To Volume Computation</string>
+        </property>
+        <property name="text">
+         <string>Create Calcifications Segmentation Node</string>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="0">
+       <widget class="QCheckBox" name="PartialSegmentation">
+        <property name="toolTip">
+         <string>If Checked,Only Takes Samples To Segment For Cropping, Requires Enabling Cropping</string>
+        </property>
+        <property name="text">
+         <string>Partial Segmentation</string>
+        </property>
+        <property name="checked">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
       <item row="8" column="0" colspan="2">
        <widget class="QCheckBox" name="CalSeg3D">
         <property name="enabled">
@@ -102,6 +145,13 @@
         </property>
         <property name="text">
          <string>Visualize The Heart</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0" colspan="2">
+       <widget class="Line" name="line">
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
         </property>
        </widget>
       </item>
@@ -150,26 +200,6 @@
         </item>
        </layout>
       </item>
-      <item row="2" column="0" colspan="2">
-       <widget class="Line" name="line">
-        <property name="orientation">
-         <enum>Qt::Horizontal</enum>
-        </property>
-       </widget>
-      </item>
-      <item row="4" column="0">
-       <widget class="QCheckBox" name="PartialSegmentation">
-        <property name="toolTip">
-         <string>If Checked,Only Takes Samples To Segment For Cropping, Requires Enabling Cropping</string>
-        </property>
-        <property name="text">
-         <string>Partial Segmentation</string>
-        </property>
-        <property name="checked">
-         <bool>true</bool>
-        </property>
-       </widget>
-      </item>
       <item row="3" column="0">
        <widget class="QCheckBox" name="CroppingEnabled">
         <property name="toolTip">
@@ -183,30 +213,19 @@
         </property>
        </widget>
       </item>
-      <item row="5" column="0" colspan="2">
-       <widget class="QCheckBox" name="HeartSegNode">
-        <property name="toolTip">
-         <string>If Checked, Creates A Segmentation Node Marking The Heart, Doesn't Work With Partial Segmentation</string>
-        </property>
-        <property name="text">
-         <string>Create Heart Segmentation Node</string>
-        </property>
-       </widget>
-      </item>
-      <item row="7" column="0" colspan="2">
-       <widget class="QCheckBox" name="CalSegNode">
-        <property name="toolTip">
-         <string>If Checked, Creates A Segmentation Node Showing Found Calcifications In Addition To Volume Computation</string>
-        </property>
-        <property name="text">
-         <string>Create Calcifications Segmentation Node</string>
-        </property>
-       </widget>
-      </item>
       <item row="9" column="0" colspan="2">
-       <widget class="QCheckBox" name="UseProcesses">
+       <widget class="QCheckBox" name="DeepCal">
+        <property name="enabled">
+         <bool>false</bool>
+        </property>
+        <property name="toolTip">
+         <string>If checked uses a Deep Learning Model to find calcifications, else uses Image Processing techniques</string>
+        </property>
         <property name="text">
-         <string>Use A Seperate Process For Intensive Operations</string>
+         <string>Use A Deep Learning Model To Find Calcifications</string>
+        </property>
+        <property name="checkable">
+         <bool>true</bool>
         </property>
         <property name="checked">
          <bool>true</bool>
