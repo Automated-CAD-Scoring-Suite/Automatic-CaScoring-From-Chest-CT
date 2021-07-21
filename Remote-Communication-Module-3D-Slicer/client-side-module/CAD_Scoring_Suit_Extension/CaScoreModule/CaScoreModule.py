@@ -557,6 +557,7 @@ class SegmentationProcess(Process):
             'Local': self.Local,
             'ServerURL': self.ServerURL,
             'Partial': self.Partial,
+            'Routes': self.Routes,
         }
         with open('data.pkl', 'wb') as f:
             pickle.dump(InputData, f)
