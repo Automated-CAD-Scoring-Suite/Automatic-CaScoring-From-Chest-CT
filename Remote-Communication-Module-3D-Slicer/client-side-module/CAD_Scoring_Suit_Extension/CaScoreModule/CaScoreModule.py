@@ -537,13 +537,14 @@ class Signals(qt.QObject):
 # Processes Classes
 class SegmentationProcess(Process):
 
-    def __init__(self, scriptPath, VolumeArray, Local, ServerURL, Partial, ModelPath):
+    def __init__(self, scriptPath, VolumeArray, Local, ServerURL, Routes, Partial, ModelPath):
         Process.__init__(self, scriptPath)
         self.VolumeArray = VolumeArray  # Numpy array, to use as input for the model.
         self.ModelPath = ModelPath  # Path to the TF model you'd like to load, as TF Models are not picklable.
         self.Local = Local
         self.ServerURL = ServerURL
         self.Partial = Partial
+        self.Routes = Routes
         self.Name = f"Segmentation-{os.path.basename(ModelPath)}"
         self.Output = None
         self.Segmentation = None
@@ -619,6 +620,14 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
         self.VolumeName = None
         self.Calcifications = None
         self.UseProcesses = True
+        self.HeartSegRoutes = {
+            'Partial': "/segment/slices",
+            'Volume': "/segment/volume"
+        }
+        self.CalSegRoutes = {
+            'Partial': "",
+            'Volume': "/calcifications/volume"
+        }
 
     def setDefaultParameters(self, parameterNode):
         """
@@ -807,11 +816,13 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
                     # Without Receiving The Segmentation, Get The Bounding Box Coordinates
                     self.UpdateCallback(1, "Sending Slices To The Server")
                     if self.UseProcesses:
-                        self.SegmentationProcessWrapper("SegAndCrop.slicer.py", self.SegAndCropCompleted, self.VolumeArray,
+                        self.SegmentationProcessWrapper("SegAndCrop.slicer.py", self.SegAndCropCompleted,
+                                                        self.VolumeArray,
                                                         self.Local, self.ServerURL, self.Partial, self.HeartModelPath)
                     else:
                         Start = time.time()
-                        self.Coordinates = self.SegmentAndCrop(self.VolumeArray, self.Local, self.ServerURL, self.HeartModelPath)
+                        self.Coordinates = self.SegmentAndCrop(self.VolumeArray, self.Local, self.ServerURL,
+                                                               self.HeartModelPath)
                         self.SegAndCropTime = time.time() - Start
                         self.SegAndCropDone = True
                 elif (self.HeartSegNode or self.CroppingEnabled) and not self.HeartSegDone and \
@@ -823,12 +834,12 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
                         self.UpdateCallback(1, "Sending Volume To The Server")
                     if self.UseProcesses:
                         self.SegmentationProcessWrapper("Segmentation.slicer.py", self.HeartSegmentationCompleted,
-                                                        self.VolumeArray, self.Local, self.ServerURL, self.Partial,
-                                                        self.HeartModelPath)
+                                                        self.VolumeArray, self.Local, self.ServerURL,
+                                                        self.HeartSegRoutes, self.Partial, self.HeartModelPath)
                     else:
                         self.Segmentation, self.SegmentationTime = self.Segment(self.VolumeArray, self.Local,
-                                                                                self.ServerURL, self.Partial, True,
-                                                                                self.HeartModelPath)
+                                                                                self.ServerURL, self.HeartSegRoutes,
+                                                                                self.Partial, True, self.HeartModelPath)
                         self.HeartSegDone = True
             if self.HeartSegDone:
                 self.UpdateCallback(1, "Completed in {0:.2f} Seconds".format(self.SegmentationTime))
@@ -884,12 +895,12 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
                     self.UpdateCallback(3, "Sending Volume To The Server")
                 if self.UseProcesses:
                     self.SegmentationProcessWrapper("Segmentation.slicer.py", self.CalSegmentationCompleted,
-                                                    self.VolumeArray, self.Local, self.ServerURL, self.Partial,
-                                                    self.CalModelPath)
+                                                    self.VolumeArray, self.Local, self.ServerURL, self.CalSegRoutes,
+                                                    self.Partial, self.CalModelPath)
                 else:
                     self.Calcifications, self.CalTime = self.Segment(self.VolumeArray, self.Local,
-                                                                     self.ServerURL, self.Partial, True,
-                                                                     self.CalModelPath)
+                                                                     self.ServerURL, self.CalSegRoutes,
+                                                                     self.Partial, True, self.CalModelPath)
                     self.CalSegDone = True
                     self.UpdateCallback(3, "Completed in {0:.2f} Seconds".format(self.CalTime))
 
@@ -995,20 +1006,20 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
 
         return Coordinates
 
-    def Segment(self, inputVolume, LocalProcessing=True, ServerURL="http://localhost:5000", Partial=True,
+    def Segment(self, inputVolume, LocalProcessing=True, ServerURL="http://localhost:5000", Routes=None, Partial=True,
                 ReturnTime=True, ModelPath=None):
         """
        Applies A TensorFlow Segmentation Model To The Given Volume
        :param inputVolume: NumPy Array of The Volume
        :param LocalProcessing: It True, Process Data Locally
        :param ServerURL: If Local is Set To False, Send The Volume To This URL For Processing
+       :param Routes: Routes To Send The Data To On The Server
        :param Partial: If True, Segments Only 3 Slices in Each View, Used in Cropping
        :param ReturnTime: Returns The Time Taken by The Function
        :param ModelPath: Path of The TensorFlow Model Used in Segmentation
        :returns SegmentedSlices: Array Containing The Segmented Volume
        :returns SegmentTime: Time Taken By The Function
         """
-        # TODO: Receive Routes From Caller
         if inputVolume is None:
             raise ValueError("Input volume is invalid")
 
@@ -1029,8 +1040,8 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
             RawSliceArrays, files, ShiftValues = self.GetSampleSlicesFromVolume(VolumeArray=VolumeArray,
                                                                                 Local=LocalProcessing)
             if not LocalProcessing:
-                # Send Data To Server For Processing
-                SliceSendReq = requests.post(ServerURL + "/segment/slices", files=files, data=ShiftValues)
+                # Send Data To Server For Processing"/segment/slices"
+                SliceSendReq = requests.post(ServerURL + Routes["Partial"], files=files, data=ShiftValues)
                 Response = BytesIO(SliceSendReq.content)
                 Response.seek(0)
                 Data = np.load(Response)
@@ -1056,7 +1067,7 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
                 CompressedVolume = BytesIO()
                 np.savez_compressed(CompressedVolume, Volume=VolumeArray)
                 CompressedVolume.seek(0)
-                SliceSendReq = requests.post(ServerURL + "/segment/volume", files={"Volume": CompressedVolume})
+                SliceSendReq = requests.post(ServerURL + Routes["Volume"], files={"Volume": CompressedVolume})
                 Response = BytesIO(SliceSendReq.content)
                 Response.seek(0)
                 Data = np.load(Response)
@@ -1088,7 +1099,7 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
             return SegmentedSlices
 
     def SegmentationProcessWrapper(self, ScriptName, CompletedCallback, VolumeArray, Local=None,
-                                   ServerURL=None, Partial=None, HeartModelPath=None):
+                                   ServerURL=None, Routes=None, Partial=None, HeartModelPath=None):
         """
        Starts The Given Script Located in Resources/ProcessScripts Folder in a Separate Process
        :param ScriptName: Name of The Script To Run
@@ -1096,13 +1107,14 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
        :param VolumeArray: NumPy Array of The Volume
        :param Local: It True, Process Data Locally
        :param ServerURL: If Local is Set To False, Send The Volume To This URL For Processing
+       :param Routes: Routes To Send The Data To On The Server
        :param Partial: If True, Segments Only 3 Slices in Each View, Used in Cropping
        :param HeartModelPath: Path of The TensorFlow Model Used in Segmentation
        """
         scriptFolder = slicer.modules.cascoremodule.path.replace('CaScoreModule.py', '/Resources/ProcessScripts/')
         scriptPath = os.path.join(scriptFolder, ScriptName)
         self.HeartSegmentationProcess = SegmentationProcess(scriptPath, VolumeArray, Local,
-                                                            ServerURL, Partial,
+                                                            ServerURL, Routes, Partial,
                                                             HeartModelPath)
         logic = ProcessesLogic(completedCallback=lambda: CompletedCallback())
         logic.addProcess(self.HeartSegmentationProcess)

@@ -18,6 +18,7 @@ from Models.crop_roi import get_coords, GetCoords
 from Models.Segmentation.Inference import Infer
 
 HeartModelPath = RepoRoot + "/Models/Segmentation/Models_Saved/Heart_Localization"
+CalsModelPath = RepoRoot + "/Models/Segmentation/Models_Saved/Heart_Localization"
 
 app = Flask(__name__)
 model = Infer(model_path=HeartModelPath, model_input=(112, 112, 112))
@@ -81,7 +82,7 @@ def SegmentSlices():
             CompressedArray.seek(0)
 
             # Send Segmented Slices
-            return send_file(CompressedArray, download_name="SegmentedSlices")
+            return send_file(CompressedArray, attachment_filename="SegmentedSlices")
     return 400
 
 
@@ -107,7 +108,33 @@ def SegmentVolume():
         Data.close()
 
         # Return The Segmented Volume
-        return send_file(CompressedArray, download_name="SegmentedVolume.npz")
+        return send_file(CompressedArray, attachment_filename="SegmentedVolume.npz")
+
+    return "Good"
+
+@app.route('/calcifications/volume', methods=['POST'])
+def SegmentVolume():
+    if request.method == 'POST':
+        # Get Compressed Volume
+        VolumeCompressed = request.files["Volume"]
+
+        # Decompress & Get Volume Array
+        Data = np.load(VolumeCompressed)
+        VolumeArray = Data['Volume']
+
+        # Get Segmentation
+        Segmentation = GetVolumeSegmentation(Volume=VolumeArray, ModelPath=CalsModelPath)
+
+        # Compress Segmentation Array
+        CompressedArray = BytesIO()
+        np.savez_compressed(CompressedArray, Segmentation=Segmentation)
+        CompressedArray.seek(0)
+
+        # Close The Loaded npz File To Prevent Memory Leaks
+        Data.close()
+
+        # Return The Segmented Volume
+        return send_file(CompressedArray, attachment_filename="SegmentedVolume.npz")
 
     return "Good"
 

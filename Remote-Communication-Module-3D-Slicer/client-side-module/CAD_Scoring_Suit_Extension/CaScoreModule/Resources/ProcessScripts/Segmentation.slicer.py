@@ -85,8 +85,7 @@ try:
     Local = Input["Local"]
     ServerURL = Input["ServerURL"]
     Partial = Input["Partial"]
-
-    # TODO: Receive Routes From Caller
+    Routes = Input["Routes"]
 
     # Get Segmentation Start Time
     SegmentStart = time.time()
@@ -103,7 +102,7 @@ try:
 
         if not Local:
             # Send Data To Server For Processing
-            SliceSendReq = requests.post(ServerURL + "/segment/slices", files=files, data=ShiftValues)
+            SliceSendReq = requests.post(ServerURL + Routes["Partial"], files=files, data=ShiftValues)
             Response = BytesIO(SliceSendReq.content)
             Response.seek(0)
             Data = np.load(Response)
@@ -130,7 +129,7 @@ try:
             CompressedVolume = BytesIO()
             np.savez_compressed(CompressedVolume, Volume=VolumeArray)
             CompressedVolume.seek(0)
-            SliceSendReq = requests.post(ServerURL + "/segment/volume", files={"Volume": CompressedVolume})
+            SliceSendReq = requests.post(ServerURL + Routes["Volume"], files={"Volume": CompressedVolume})
             Response = BytesIO(SliceSendReq.content)
             Response.seek(0)
             Data = np.load(Response)
