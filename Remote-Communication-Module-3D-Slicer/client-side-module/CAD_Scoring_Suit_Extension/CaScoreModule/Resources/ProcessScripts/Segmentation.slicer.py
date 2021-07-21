@@ -86,8 +86,6 @@ try:
     ServerURL = Input["ServerURL"]
     Partial = Input["Partial"]
 
-
-
     # TODO: Receive Routes From Caller
 
     # Get Segmentation Start Time
@@ -162,6 +160,7 @@ try:
     output = {'Segmentation': SegmentedSlices, 'SegmentationTime': SegmentTime}
 
     sys.stdout.buffer.write(pickle.dumps(output))
+
 except Exception as e:
     logger.error(str(e))
     logger.error(traceback.format_exc())
