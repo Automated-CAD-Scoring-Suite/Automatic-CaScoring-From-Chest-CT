@@ -112,8 +112,9 @@ def SegmentVolume():
 
     return "Good"
 
+
 @app.route('/calcifications/volume', methods=['POST'])
-def SegmentVolume():
+def VolumeCalcifications():
     if request.method == 'POST':
         # Get Compressed Volume
         VolumeCompressed = request.files["Volume"]
