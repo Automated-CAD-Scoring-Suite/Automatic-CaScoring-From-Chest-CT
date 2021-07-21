@@ -13,12 +13,14 @@ CurrentDir = os.path.dirname(os.path.realpath(__file__))
 ParentDir = os.path.dirname(CurrentDir)
 RepoRoot = os.path.dirname(ParentDir)
 sys.path.append(RepoRoot)
+
 from Models.crop_roi import get_coords, GetCoords
 from Models.Segmentation.Inference import Infer
 
 HeartModelPath = RepoRoot + "/Models/Segmentation/Models_Saved/Heart_Localization"
 
 app = Flask(__name__)
+model = Infer(model_path=HeartModelPath, model_input=(112, 112, 112))
 
 
 def allow_CORS():
@@ -79,7 +81,7 @@ def SegmentSlices():
             CompressedArray.seek(0)
 
             # Send Segmented Slices
-            return send_file(CompressedArray, attachment_filename="SegmentedSlices")
+            return send_file(CompressedArray, download_name="SegmentedSlices")
     return 400
 
 
@@ -105,7 +107,7 @@ def SegmentVolume():
         Data.close()
 
         # Return The Segmented Volume
-        return send_file(CompressedArray, attachment_filename="SegmentedVolume.npz")
+        return send_file(CompressedArray, download_name="SegmentedVolume.npz")
 
     return "Good"
 
@@ -116,7 +118,7 @@ def GetSlicesSegmentation(Slices, Shift):
     SagSlices = []
     CorSlices = []
     SegmentedSlices = [[], [], []]
-    model = Infer(model_path=HeartModelPath, model_input=(112, 112, 112))
+
     for SliceName in Names:
         Slice = Image.open(Slices[SliceName])
         SliceArray = np.array(Slice, dtype="int16")
