@@ -947,7 +947,6 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
             # Display The Heart Segmentation
             if not self.Partial and self.HeartSegNode and not self.HeartSegNodeDone \
                     and self.HeartSegDone and (self.CroppingDone == self.CroppingEnabled):
-                VizStart = time.time()
                 self.UpdateCallback(4, "Creating The Heart Segmentation Node")
                 if self.CroppingEnabled:
                     # If Cropping is Enabled, Also Crop The Segmentation
@@ -965,12 +964,16 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
                 else:
                     self.UpdateCallback(3, "Sending Volume To The Server")
                 if self.DeepCal:
+                    if self.CroppingEnabled:
+                        Vol = self.NewVolume
+                    else:
+                        Vol = self.VolumeArray
                     if self.UseProcesses:
                         self.SegmentationProcessWrapper("Segmentation.slicer.py", self.CalSegmentationCompleted,
-                                                        self.VolumeArray, self.Local, self.ServerURL, self.CalSegRoutes,
+                                                        Vol, self.Local, self.ServerURL, self.CalSegRoutes,
                                                         self.Partial, self.CalModelPath, (128, 128, 80))
                     else:
-                        self.Calcifications, self.CalTime = self.Segment(self.NewVolume, self.Local,
+                        self.Calcifications, self.CalTime = self.Segment(Vol, self.Local,
                                                                          self.ServerURL, self.CalSegRoutes,
                                                                          self.Partial, True, self.CalModelPath,
                                                                          (128, 128, 80))
@@ -994,6 +997,7 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
 
             # Create Segmentation Node of The Calcifications
             if self.CalSegNode and self.CalSegDone and not self.CalSegNodeDone:
+                VizStart = time.time()
                 self.CreateSegmentationNode(self.Calcifications, f'{self.VolumeName}-Calcifications',
                                             self.VolumeIJKToRAS, self.CalSeg3D)
                 self.CreateSegmentationNode(self.CalcificationsMasked, f'{self.VolumeName}-CalcificationsMasked',
