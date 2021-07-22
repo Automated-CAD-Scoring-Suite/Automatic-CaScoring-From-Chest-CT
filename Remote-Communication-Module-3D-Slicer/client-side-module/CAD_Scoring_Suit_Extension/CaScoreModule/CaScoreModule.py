@@ -795,8 +795,23 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
         self.ServerURL = parameterNode.GetParameter("URL")
         self.VoxelSpacing = np.array(InputVolumeNode.GetSpacing())
 
+        if self.Local:
+            if self.DeepCal:
+                if not os.path.exists(self.CalModelPath):
+                    self.SetDefaultClassVariables()
+                    raise ValueError("Calcifications Model Doesn't Exist")
+
+            if self.CroppingEnabled or self.HeartSegNode:
+                if not os.path.exists(self.HeartModelPath):
+                    self.SetDefaultClassVariables()
+                    raise ValueError("Heart Segmentation Model Doesn't Exist")
+
         # Store Volume Node
         self.InputVolumeNode = InputVolumeNode
+
+        if not InputVolumeNode:
+            self.SetDefaultClassVariables()
+            raise ValueError("Input volume is invalid")
 
         # Get Volume Name
         self.VolumeName = self.InputVolumeNode.GetName()
