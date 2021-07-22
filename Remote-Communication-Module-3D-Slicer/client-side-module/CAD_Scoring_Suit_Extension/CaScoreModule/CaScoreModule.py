@@ -530,7 +530,7 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.CalVolLabel.setEnabled(False)
         self.ui.CalVol.setEnabled(False)
         self.ui.CalVol.text = ""
-        self.ui.TotalLabel.setEnabled(False)
+        self.ui.TotalTimeLabel.setEnabled(False)
         self.ui.TotalTime.setEnabled(False)
         self.ui.TotalTime.text = ""
 
