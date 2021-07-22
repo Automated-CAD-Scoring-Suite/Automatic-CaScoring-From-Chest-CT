@@ -976,8 +976,8 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
                         self.Calcifications = ThresholdCAC(self.VolumeArray, 160)
                     self.CalTime = time.time() - start
                     self.UpdateCallback(3, "Completed in {0:.2f} Seconds".format(self.CalTime))
-                    self.CreateSegmentationNode(self.Calcifications, f'{self.VolumeName}-Calcifications',
-                                                self.VolumeIJKToRAS, self.CalSeg3D)
+                    # self.CreateSegmentationNode(self.Calcifications, f'{self.VolumeName}-Calcifications',
+                    #                             self.VolumeIJKToRAS, self.CalSeg3D)
                     self.CalSegDone = True
 
             # Calculate Calcifications Volume And Call The Update Callback To Display It
