@@ -969,7 +969,7 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
             if self.CalSegNodeDone and self.HeartSegNodeDone:
                 VizEnd = time.time()
                 self.UpdateCallback(4, "Visualization Completed in {0:.2f} Seconds".format(VizEnd - VizStart))
-
+                self.UpdateCallback(5, "{0:.2f} mm³".format(self.CalVolume))
 
         except Exception as e:
             slicer.util.errorDisplay("Failed to compute results: " + str(e))
