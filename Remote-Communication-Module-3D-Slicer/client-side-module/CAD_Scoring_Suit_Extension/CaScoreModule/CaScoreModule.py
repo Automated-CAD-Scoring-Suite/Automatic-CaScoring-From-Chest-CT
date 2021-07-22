@@ -998,8 +998,8 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
             # Create Segmentation Node of The Calcifications
             if self.CalSegNode and self.CalSegDone and not self.CalSegNodeDone:
                 VizStart = time.time()
-                self.CreateSegmentationNode(self.Calcifications, f'{self.VolumeName}-Calcifications',
-                                            self.VolumeIJKToRAS, self.CalSeg3D)
+                # self.CreateSegmentationNode(self.Calcifications, f'{self.VolumeName}-Calcifications',
+                #                             self.VolumeIJKToRAS, self.CalSeg3D)
                 self.CreateSegmentationNode(self.CalcificationsMasked, f'{self.VolumeName}-CalcificationsMasked',
                                             self.VolumeIJKToRAS, self.CalSeg3D)
                 self.CalSegNodeDone = True
