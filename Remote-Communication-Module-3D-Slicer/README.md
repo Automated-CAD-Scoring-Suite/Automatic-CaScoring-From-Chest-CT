@@ -61,6 +61,7 @@ volumes will we do the processing on
 In this section, we select the main parameters for our processing:
 
 ### Processing Location
+
 We have two main modes in our module, a local mode and an online mode,
 This setting determines which one we will use, in summary the difference
 between them is:
@@ -112,10 +113,47 @@ Uses one of two available methods to find calcifications in the heart and save i
 segmentation node, by default uses Image Processing techniques to determine the calcification
 the calculates their total volume. Requires full heart segmentation.
 
+The image processing option uses image thresholding (>130-160) to find all locations 
+containing calcium in the volume and saving it in a Calcifications volume, we then use it
+to get two different volume:
+
+1. Calcifications in the heart's segmentation area, this is done by masking the calcifications 
+   using the heart segmentation prediction, so only calcification inside our
+   predicted heart are detected.
+   
+2. Ignoring calcifications in the calcifications volume which are located near known bone masses.
+
+By adding these two, we create a new volume which accurately locates all calcifications.
+
 ### Visualize The Heart As A Closed Surface
 
 Creates a closed surface representation of the calcifications, similar to that of the heart.
 
+### Use A Deep Learning Model To Find Calcifications
 
+Using this option utilizes a TensorFlow Deep Learning Model to predict the location of 
+calcifications.
 
+`There is currently no available demo model with reasonable output for calcifications detection`
 
+### Use A Separate Process For Intensive Operations
+
+This option delegates long-running operation to a separate process so that it doesn't block 
+3D Slicer's UI.
+
+This is a problem that plagues parts of 3D Slicer as it mainly works in a single-thread so any 
+long-running or CPU intensive operations completely locks out the user from using the ui.
+
+We choose to use a separate process instead of a second thread for a couple of reasons which are:
+
+1. Using a different process for CPU-Intensive operations is generally preferred as it is faster
+   than using threads, threads are better suited for I/O operations or any operation that simply 
+   involves waiting, since the main operation that we delegate is model prediction which could 
+   utilize the CPU heavily, running it in a separate process seemed more practical.
+   
+2. Due to the way 3D Slicer is built, and the fact that it runs on a pre-packaged python version
+   and relies on it heavily to complete various operations (Even though 3D slicer is made using C++),
+   threads are incompatible with it to a certain degree, to be able to use threads certain actions
+   need to be made which could destabilize the application making it more error prone and prevent 
+   the usage of some functionalities temporarily, this was a point against using threads even though
+   it's generally easier to use them inside Qt.
