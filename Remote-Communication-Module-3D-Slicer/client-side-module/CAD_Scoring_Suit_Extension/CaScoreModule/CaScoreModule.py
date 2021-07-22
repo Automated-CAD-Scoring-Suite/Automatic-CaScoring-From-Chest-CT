@@ -31,6 +31,7 @@ RepoRoot = os.path.dirname(
 sys.path.append(RepoRoot)
 
 from Models.crop_roi import get_coords, GetCoords
+from Models.Segmentation.CAC import ThresholdCAC, QuantifyCAC
 
 
 #
@@ -470,7 +471,13 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.RecenterVolume()
 
         stopTime = time.time()
+
         logging.info('Processing completed in {0:.2f} seconds'.format(stopTime - self.startTime))
+
+        self.ui.TotalTime.text = '{0:.2f} Seconds'.format(stopTime - self.startTime)
+
+        self.ui.Results.setEnabled(True)
+        self.ui.Results.collapsed = False
 
     def ProcessingStarted(self):
         """
@@ -507,6 +514,13 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.CalVolLabel.setEnabled(False)
         self.ui.CalVol.setEnabled(False)
         self.ui.CalVol.text = ""
+        self.ui.Results.setEnabled(False)
+        self.ui.Results.collapsed = True
+        self.ui.CalVolLabel.setEnabled(False)
+        self.ui.CalVol.setEnabled(False)
+        self.ui.CalVol.text = ""
+        self.ui.TotalTime.setEnabled(False)
+        self.ui.TotalTime.text = ""
 
     def onApplyButton(self):
         """
@@ -629,6 +643,7 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
         self.Calcifications = None
         self.DeepCal = None
         self.UseProcesses = True
+        self.CalcificationsMasked = None
         self.HeartSegRoutes = {
             'Partial': "/segment/slices",
             'Volume': "/segment/volume"
@@ -637,6 +652,8 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
             'Partial': "",
             'Volume': "/calcifications/volume"
         }
+        self.CalVolume = None
+        self.VoxelSpacing = None
 
     def setDefaultParameters(self, parameterNode):
         """
@@ -726,6 +743,9 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
         self.Calcifications = None
         self.UseProcesses = True
         self.DeepCal = None
+        self.CalcificationsMasked = None
+        self.CalVolume = None
+        self.VoxelSpacing = None
 
     def SetParametersFromNode(self, InputVolumeNode, parameterNode):
         """
@@ -769,6 +789,7 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
         self.HeartModelPath = parameterNode.GetParameter("HeartModelPath")
         self.CalModelPath = parameterNode.GetParameter("CalModelPath")
         self.ServerURL = parameterNode.GetParameter("URL")
+        self.VoxelSpacing = np.array(InputVolumeNode.GetSpacing())
 
         # Store Volume Node
         self.InputVolumeNode = InputVolumeNode
@@ -865,13 +886,13 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
             if self.CroppingEnabled and not self.SegAndCrop and self.HeartSegDone and not self.CoordinatesCalculated:
                 # Calculate Coordinates & Add Margin
                 self.UpdateCallback(2, "Calculating Cropping Coordinates")
-                self.Coordinates = self.GetCoordinates(self.Segmentation, self.Partial, 20)
+                self.Coordinates = self.GetCoordinates(self.Segmentation, self.Partial, 0)
                 self.CoordinatesCalculated = True
 
             elif self.CroppingEnabled and self.SegAndCrop and not self.CoordinatesCalculated and self.SegAndCropDone:
                 self.UpdateCallback(2, "Adding Margins")
                 # Add A Margin Only To The Coordinates Received From The Server
-                self.Coordinates = self.AddMargin(Volume=self.VolumeArray, ROICoordinates=self.Coordinates, Margin=20)
+                self.Coordinates = self.AddMargin(Volume=self.VolumeArray, ROICoordinates=self.Coordinates, Margin=0)
                 self.CoordinatesCalculated = True
 
             # Crop The Volume
@@ -882,8 +903,8 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
                 self.UpdateCallback(2, f"Cropping Volume Z->{self.Coordinates[0]}:{self.Coordinates[1]}, "
                                        f"X->{self.Coordinates[2]}:{self.Coordinates[3]}, "
                                        f"Y->{self.Coordinates[4]}:{self.Coordinates[5]}")
-                NewVolume = self.CropVolume(Volume=self.VolumeArray, Coordinates=self.Coordinates)
-                slicer.util.updateVolumeFromArray(self.InputVolumeNode, NewVolume)
+                self.NewVolume = self.CropVolume(Volume=self.VolumeArray, Coordinates=self.Coordinates)
+                slicer.util.updateVolumeFromArray(self.InputVolumeNode, self.NewVolume)
                 logging.info(f"Cropped!")
                 self.CroppingDone = True
                 self.UpdateCallback(2, "Volume Cropped")
@@ -891,6 +912,7 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
             # Display The Heart Segmentation
             if not self.Partial and self.HeartSegNode and not self.HeartSegNodeDone \
                     and self.HeartSegDone and (self.CroppingDone == self.CroppingEnabled):
+                VizStart = time.time()
                 self.UpdateCallback(4, "Creating The Heart Segmentation Node")
                 if self.CroppingEnabled:
                     # If Cropping is Enabled, Also Crop The Segmentation
@@ -902,7 +924,7 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
 
             # Find Calcifications
             if self.CalSegNode and not self.CalSegDone and (self.SegAndCrop == self.SegAndCropDone) and \
-                    (self.HeartSegNode == self.HeartSegNodeDone) and (self.CroppingEnabled == self.CroppingDone):
+                    (self.CroppingEnabled == self.CroppingDone):
                 if self.Local:
                     self.UpdateCallback(3, "Finding Calcifications Locally")
                 else:
@@ -913,22 +935,41 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
                                                         self.VolumeArray, self.Local, self.ServerURL, self.CalSegRoutes,
                                                         self.Partial, self.CalModelPath)
                     else:
-                        self.Calcifications, self.CalTime = self.Segment(self.VolumeArray, self.Local,
+                        self.Calcifications, self.CalTime = self.Segment(self.NewVolume, self.Local,
                                                                          self.ServerURL, self.CalSegRoutes,
                                                                          self.Partial, True, self.CalModelPath)
                         self.CalSegDone = True
                         self.UpdateCallback(3, "Completed in {0:.2f} Seconds".format(self.CalTime))
                 else:
-                    pass
-            # Create Segmentation Node of The Calcifications
-            if self.CalSegNode and self.CalSegDone and not self.CalSegNodeDone:
-                self.CreateSegmentationNode(self.Calcifications, f'{self.VolumeName}-Calcifications',
-                                            self.VolumeIJKToRAS, self.CalSeg3D)
-                self.CalSegNodeDone = True
+                    # Find Calcifications Using Image Thresholding
+                    start = time.time()
+                    if self.CroppingEnabled:
+                        self.Calcifications = ThresholdCAC(self.NewVolume, 160)
+                    else:
+                        self.Calcifications = ThresholdCAC(self.VolumeArray, 160)
+                    self.CalTime = time.time() - start
+                    self.UpdateCallback(3, "Completed in {0:.2f} Seconds".format(self.CalTime))
+                    self.CreateSegmentationNode(self.Calcifications, f'{self.VolumeName}-Calcifications',
+                                                self.VolumeIJKToRAS, self.CalSeg3D)
+                    self.CalSegDone = True
 
             # Calculate Calcifications Volume And Call The Update Callback To Display It
-            if self.CalSegNodeDone:
-                pass
+            if self.CalSegDone:
+                self.CalcificationsMasked, self.CalVolume = QuantifyCAC(self.Calcifications, self.Segmentation,
+                                                                        self.VoxelSpacing)
+
+            # Create Segmentation Node of The Calcifications
+            if self.CalSegNode and self.CalSegDone and not self.CalSegNodeDone:
+                self.CreateSegmentationNode(self.CalcificationsMasked, f'{self.VolumeName}-CalcificationsMasked',
+                                            self.VolumeIJKToRAS, self.CalSeg3D)
+                self.CalSegNodeDone = True
+                self.UpdateCallback(4, "Calcifications Visualized")
+
+            # Show Results
+            if self.CalSegNodeDone and self.HeartSegNodeDone:
+                VizEnd = time.time()
+                self.UpdateCallback(4, "Visualization Completed in {0:.2f} Seconds".format(VizEnd - VizStart))
+
 
         except Exception as e:
             slicer.util.errorDisplay("Failed to compute results: " + str(e))
@@ -1223,7 +1264,7 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
             SegNode.CreateClosedSurfaceRepresentation()
 
         # Delete The LabelMapVolume
-        slicer.mrmlScene.RemoveNode(LabelMapVolumeNode)
+        # slicer.mrmlScene.RemoveNode(LabelMapVolumeNode)
 
     def GetCoordinates(self, Segmentation, Partial, Margin):
         """
