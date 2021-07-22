@@ -86,6 +86,7 @@ try:
     ServerURL = Input["ServerURL"]
     Partial = Input["Partial"]
     Routes = Input["Routes"]
+    Shape = Input["Shape"]
 
     # Get Segmentation Start Time
     SegmentStart = time.time()
@@ -116,7 +117,7 @@ try:
             # Load Model
             from Models.Segmentation.Inference import Infer
 
-            model = Infer(model_path=ModelPath, model_input=(112, 112, 112))
+            model = Infer(model_path=ModelPath, model_input=Shape)
             # Loop over 3 slices in each View and apply heart segmentation
             for i in range(3):
                 SegSlice = model.predict(np.array(RawSliceArrays[i]))
@@ -140,7 +141,7 @@ try:
         else:
             from Models.Segmentation.Inference import Infer
 
-            model = Infer(model_path=ModelPath, model_input=(112, 112, 112))
+            model = Infer(model_path=ModelPath, model_input=Shape)
             # Calculate Slice Time
             SliceStart = time.time()
 

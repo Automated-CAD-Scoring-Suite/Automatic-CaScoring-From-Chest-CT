@@ -570,7 +570,7 @@ class Signals(qt.QObject):
 # Processes Classes
 class SegmentationProcess(Process):
 
-    def __init__(self, scriptPath, VolumeArray, Local, ServerURL, Routes, Partial, ModelPath):
+    def __init__(self, scriptPath, VolumeArray, Local, ServerURL, Routes, Partial, ModelPath, Shape=None):
         Process.__init__(self, scriptPath)
         self.VolumeArray = VolumeArray  # Numpy array, to use as input for the model.
         self.ModelPath = ModelPath  # Path to the TF model you'd like to load, as TF Models are not picklable.
@@ -578,6 +578,7 @@ class SegmentationProcess(Process):
         self.ServerURL = ServerURL
         self.Partial = Partial
         self.Routes = Routes
+        self.Shape = Shape
         self.Name = f"Segmentation-{os.path.basename(ModelPath)}"
         self.Output = None
         self.Segmentation = None
@@ -591,6 +592,7 @@ class SegmentationProcess(Process):
             'ServerURL': self.ServerURL,
             'Partial': self.Partial,
             'Routes': self.Routes,
+            'Shape': self.Shape
         }
         with open('data.pkl', 'wb') as f:
             pickle.dump(InputData, f)
@@ -900,11 +902,13 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
                     if self.UseProcesses:
                         self.SegmentationProcessWrapper("Segmentation.slicer.py", self.HeartSegmentationCompleted,
                                                         self.VolumeArray, self.Local, self.ServerURL,
-                                                        self.HeartSegRoutes, self.Partial, self.HeartModelPath)
+                                                        self.HeartSegRoutes, self.Partial, self.HeartModelPath,
+                                                        (112, 112, 112))
                     else:
                         self.Segmentation, self.SegmentationTime = self.Segment(self.VolumeArray, self.Local,
                                                                                 self.ServerURL, self.HeartSegRoutes,
-                                                                                self.Partial, True, self.HeartModelPath)
+                                                                                self.Partial, True, self.HeartModelPath,
+                                                                                (112, 112, 112))
                         self.HeartSegDone = True
 
             if self.HeartSegDone:
@@ -964,11 +968,12 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
                     if self.UseProcesses:
                         self.SegmentationProcessWrapper("Segmentation.slicer.py", self.CalSegmentationCompleted,
                                                         self.VolumeArray, self.Local, self.ServerURL, self.CalSegRoutes,
-                                                        self.Partial, self.CalModelPath)
+                                                        self.Partial, self.CalModelPath, (128, 128, 80))
                     else:
                         self.Calcifications, self.CalTime = self.Segment(self.NewVolume, self.Local,
                                                                          self.ServerURL, self.CalSegRoutes,
-                                                                         self.Partial, True, self.CalModelPath)
+                                                                         self.Partial, True, self.CalModelPath,
+                                                                         (128, 128, 80))
                         self.CalSegDone = True
                         self.UpdateCallback(3, "Completed in {0:.2f} Seconds".format(self.CalTime))
                 else:
@@ -980,8 +985,6 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
                         self.Calcifications = ThresholdCAC(self.VolumeArray, 160)
                     self.CalTime = time.time() - start
                     self.UpdateCallback(3, "Completed in {0:.2f} Seconds".format(self.CalTime))
-                    # self.CreateSegmentationNode(self.Calcifications, f'{self.VolumeName}-Calcifications',
-                    #                             self.VolumeIJKToRAS, self.CalSeg3D)
                     self.CalSegDone = True
 
             # Calculate Calcifications Volume And Call The Update Callback To Display It
@@ -991,6 +994,8 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
 
             # Create Segmentation Node of The Calcifications
             if self.CalSegNode and self.CalSegDone and not self.CalSegNodeDone:
+                self.CreateSegmentationNode(self.Calcifications, f'{self.VolumeName}-Calcifications',
+                                            self.VolumeIJKToRAS, self.CalSeg3D)
                 self.CreateSegmentationNode(self.CalcificationsMasked, f'{self.VolumeName}-CalcificationsMasked',
                                             self.VolumeIJKToRAS, self.CalSeg3D)
                 self.CalSegNodeDone = True
@@ -1095,7 +1100,7 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
         return Coordinates
 
     def Segment(self, inputVolume, LocalProcessing=True, ServerURL="http://localhost:5000", Routes=None, Partial=True,
-                ReturnTime=True, ModelPath=None):
+                ReturnTime=True, ModelPath=None, Shape=None):
         """
        Applies A TensorFlow Segmentation Model To The Given Volume
        :param inputVolume: NumPy Array of The Volume
@@ -1104,6 +1109,7 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
        :param Routes: Routes To Send The Data To On The Server
        :param Partial: If True, Segments Only 3 Slices in Each View, Used in Cropping
        :param ReturnTime: Returns The Time Taken by The Function
+       :param Shape: Shape of The Model Input
        :param ModelPath: Path of The TensorFlow Model Used in Segmentation
        :returns SegmentedSlices: Array Containing The Segmented Volume
        :returns SegmentTime: Time Taken By The Function
@@ -1142,7 +1148,7 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
             else:
                 # Load Model
                 from Models.Segmentation.Inference import Infer
-                model = Infer(model_path=ModelPath, model_input=(112, 112, 112))
+                model = Infer(model_path=ModelPath, model_input=Shape)
                 # Loop over 3 slices in each View and apply heart segmentation
                 for i in range(3):
                     SegSlice = model.predict(np.array(RawSliceArrays[i]))
@@ -1165,7 +1171,7 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
 
             else:
                 from Models.Segmentation.Inference import Infer
-                model = Infer(model_path=ModelPath, model_input=(112, 112, 112))
+                model = Infer(model_path=ModelPath, model_input=Shape)
                 # Calculate Slice Time
                 SliceStart = time.time()
 
@@ -1187,7 +1193,7 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
             return SegmentedSlices
 
     def SegmentationProcessWrapper(self, ScriptName, CompletedCallback, VolumeArray, Local=None,
-                                   ServerURL=None, Routes=None, Partial=None, HeartModelPath=None):
+                                   ServerURL=None, Routes=None, Partial=None, HeartModelPath=None, Shape=None):
         """
        Starts The Given Script Located in Resources/ProcessScripts Folder in a Separate Process
        :param ScriptName: Name of The Script To Run
@@ -1198,12 +1204,13 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
        :param Routes: Routes To Send The Data To On The Server
        :param Partial: If True, Segments Only 3 Slices in Each View, Used in Cropping
        :param HeartModelPath: Path of The TensorFlow Model Used in Segmentation
+       :param Shape: Shape of The Model Input
        """
         scriptFolder = slicer.modules.cascoremodule.path.replace('CaScoreModule.py', '/Resources/ProcessScripts/')
         scriptPath = os.path.join(scriptFolder, ScriptName)
         self.HeartSegmentationProcess = SegmentationProcess(scriptPath, VolumeArray, Local,
                                                             ServerURL, Routes, Partial,
-                                                            HeartModelPath)
+                                                            HeartModelPath, Shape)
         logic = ProcessesLogic(completedCallback=lambda: CompletedCallback())
         logic.addProcess(self.HeartSegmentationProcess)
         logic.run()
