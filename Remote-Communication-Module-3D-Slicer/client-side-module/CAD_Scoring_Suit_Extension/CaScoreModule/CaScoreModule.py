@@ -474,6 +474,9 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         logging.info('Processing completed in {0:.2f} seconds'.format(stopTime - self.startTime))
 
+        self.ui.TotalLabel.setEnabled(True)
+        self.ui.TotalTime.setEnabled(True)
+
         self.ui.TotalTime.text = '{0:.2f} Seconds'.format(stopTime - self.startTime)
 
         self.ui.Results.setEnabled(True)
@@ -519,6 +522,7 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.CalVolLabel.setEnabled(False)
         self.ui.CalVol.setEnabled(False)
         self.ui.CalVol.text = ""
+        self.ui.TotalLabel.setEnabled(False)
         self.ui.TotalTime.setEnabled(False)
         self.ui.TotalTime.text = ""
 
