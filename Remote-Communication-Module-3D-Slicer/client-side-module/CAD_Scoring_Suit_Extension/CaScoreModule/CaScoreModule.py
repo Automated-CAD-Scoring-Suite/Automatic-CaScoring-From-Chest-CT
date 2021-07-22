@@ -422,7 +422,13 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         else:
             self.ui.CalSeg3D.setEnabled(False)
             self.ui.DeepCal.setEnabled(False)
+            self._parameterNode.SetParameter("DeepCal", "false")
             self._parameterNode.SetParameter("CalSeg3D", "false")
+
+        if strtobool(self._parameterNode.GetParameter("DeepCal")):
+            self.ui.CalModelPath.setEnabled(True)
+        else:
+            self.ui.CalModelPath.setEnabled(False)
 
         self.updateGUIFromParameterNode()
 
