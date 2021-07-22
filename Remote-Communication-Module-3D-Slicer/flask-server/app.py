@@ -23,7 +23,6 @@ CalsModelPath = RepoRoot + "/Models/Segmentation/Models_Saved/CAC"
 app = Flask(__name__)
 
 
-
 def allow_CORS():
     @after_this_request
     def add_header(response):
@@ -124,7 +123,7 @@ def VolumeCalcifications():
         VolumeArray = Data['Volume']
 
         # Get Segmentation
-        Segmentation = GetVolumeSegmentation(Volume=VolumeArray, ModelPath=CalsModelPath)
+        Segmentation = GetVolumeSegmentation(Volume=VolumeArray, ModelPath=CalsModelPath, Shape=(128, 128, 80))
 
         # Compress Segmentation Array
         CompressedArray = BytesIO()
@@ -167,10 +166,10 @@ def GetSlicesSegmentation(Slices, Shift):
     return SegmentedSlices
 
 
-def GetVolumeSegmentation(Volume, ModelPath):
+def GetVolumeSegmentation(Volume, ModelPath, Shape=(112, 112, 112)):
     Times = []
     # Load Model
-    model = Infer(model_path=ModelPath, model_input=(112, 112, 112))
+    model = Infer(model_path=ModelPath, model_input=Shape)
 
     Start = time.time()
 
