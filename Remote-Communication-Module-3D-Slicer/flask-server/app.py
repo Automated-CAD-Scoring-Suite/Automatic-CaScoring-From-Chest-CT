@@ -18,7 +18,7 @@ from Models.crop_roi import get_coords, GetCoords
 from Models.Segmentation.Inference import Infer
 
 HeartModelPath = RepoRoot + "/Models/Segmentation/Models_Saved/Heart_Localization"
-CalsModelPath = RepoRoot + "/Models/Segmentation/Models_Saved/Heart_Localization"
+CalsModelPath = RepoRoot + "/Models/Segmentation/Models_Saved/CAC"
 
 app = Flask(__name__)
 
