@@ -679,6 +679,10 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
             Path = RepoRoot + '/Models/Segmentation/Models_Saved/Heart_Localization'
             if os.path.exists(Path):
                 parameterNode.SetParameter("HeartModelPath", Path)
+        if not parameterNode.GetParameter("CalModelPath"):
+            Path = RepoRoot + '/Models/Segmentation/Models_Saved/CAC'
+            if os.path.exists(Path):
+                parameterNode.SetParameter("CalModelPath", Path)
         if not parameterNode.GetParameter("UseProcesses"):
             parameterNode.SetParameter("UseProcesses", "true")
         if not parameterNode.GetParameter("DeepCal"):
