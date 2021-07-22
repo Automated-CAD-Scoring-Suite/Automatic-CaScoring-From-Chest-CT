@@ -951,7 +951,7 @@ class CaScoreModuleLogic(ScriptedLoadableModuleLogic):
 
             # Find Calcifications
             if self.CalSegNode and not self.CalSegDone and (self.SegAndCrop == self.SegAndCropDone) and \
-                    (self.CroppingEnabled == self.CroppingDone):
+                    (self.CroppingEnabled == self.CroppingDone) and self.HeartSegDone:
                 if self.Local:
                     self.UpdateCallback(3, "Finding Calcifications Locally")
                 else:
