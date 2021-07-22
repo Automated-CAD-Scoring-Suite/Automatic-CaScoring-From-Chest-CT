@@ -9,8 +9,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>328</width>
-    <height>706</height>
+    <width>331</width>
+    <height>749</height>
    </rect>
   </property>
   <property name="toolTip">
@@ -546,9 +546,9 @@
      <property name="collapsed">
       <bool>true</bool>
      </property>
-     <layout class="QHBoxLayout" name="horizontalLayout_10">
+     <layout class="QVBoxLayout" name="verticalLayout_3">
       <item>
-       <layout class="QHBoxLayout" name="horizontalLayout_13">
+       <layout class="QHBoxLayout" name="horizontalLayout_9">
         <item>
          <widget class="QLabel" name="CalVolLabel">
           <property name="enabled">
@@ -564,6 +564,27 @@
           <property name="enabled">
            <bool>false</bool>
           </property>
+          <property name="text">
+           <string/>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="horizontalLayout_5">
+        <item>
+         <widget class="QLabel" name="TotalTimeLabel">
+          <property name="enabled">
+           <bool>false</bool>
+          </property>
+          <property name="text">
+           <string>Processing Time:</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLabel" name="TotalTime">
           <property name="text">
            <string/>
           </property>
