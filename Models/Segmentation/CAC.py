@@ -19,11 +19,12 @@ def QuantifyCAC(scan_threshold: np.ndarray, pred: np.ndarray, voxel_spacing: lis
     # Cropped = np.copy(scan_threshold)
     # Cropped[0:4, 0:40, :] = 0
     # Cropped[shape[0] - 4:shape[0], shape[1]-40:shape[1], :] = 0
-    z = int(shape[0]*0.165)
+    xmin = int(shape[1]*0.165)
+    xmax = shape[1] - xmin
     masked_out = np.zeros(shape)
-    masked_out[5:shape[0] - 4, z:shape[1] - z, :] = scan_threshold[5:shape[0] - 4, 40:shape[1] - 40, :]
+    masked_out[5:shape[0] - 4, xmin:xmax, :] = scan_threshold[5:shape[0] - 4, xmin:xmax, :]
     FinalPred = masked_out + masked_out_pred
-    FinalPred[FinalPred >= 0] = 1
+    FinalPred[FinalPred > 0] = 1
     candidate_voxels = np.count_nonzero(FinalPred)
     voxel_vol = (voxel_spacing[0] * voxel_spacing[1] * voxel_spacing[2]) / 3
     return FinalPred, candidate_voxels * voxel_vol
