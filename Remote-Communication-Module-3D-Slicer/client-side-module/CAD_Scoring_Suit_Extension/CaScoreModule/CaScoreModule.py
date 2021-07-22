@@ -187,6 +187,8 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.CalSegNode.toggled.connect(self.updateParameterNodeFromGUI)
         self.ui.CalSeg3D.toggled.connect(self.updateParameterNodeFromGUI)
         self.ui.SegAndCrop.toggled.connect(self.updateParameterNodeFromGUI)
+        self.ui.UseProcesses.toggled.connect(self.updateParameterNodeFromGUI)
+        self.ui.DeepCal.toggled.connect(self.updateParameterNodeFromGUI)
 
         # Buttons
         self.ui.applyButton.connect('clicked(bool)', self.onApplyButton)
@@ -203,6 +205,7 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.CalSegNode.toggled.connect(self.AllowedOperations)
         self.ui.CalSeg3D.toggled.connect(self.AllowedOperations)
         self.ui.SegAndCrop.toggled.connect(self.AllowedOperations)
+        self.ui.DeepCal.toggled.connect(self.AllowedOperations)
 
         # Make sure parameter node is initialized (needed for module reload)
         self.initializeParameterNode()
@@ -419,16 +422,15 @@ class CaScoreModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         if strtobool(self._parameterNode.GetParameter("CalSegNode")):
             self.ui.CalSeg3D.setEnabled(True)
             self.ui.DeepCal.setEnabled(True)
+            if strtobool(self._parameterNode.GetParameter("DeepCal")):
+                self.ui.CalModelPath.setEnabled(True)
+            else:
+                self.ui.CalModelPath.setEnabled(False)
         else:
             self.ui.CalSeg3D.setEnabled(False)
             self.ui.DeepCal.setEnabled(False)
             self._parameterNode.SetParameter("DeepCal", "false")
             self._parameterNode.SetParameter("CalSeg3D", "false")
-
-        if strtobool(self._parameterNode.GetParameter("DeepCal")):
-            self.ui.CalModelPath.setEnabled(True)
-        else:
-            self.ui.CalModelPath.setEnabled(False)
 
         self.updateGUIFromParameterNode()
 
