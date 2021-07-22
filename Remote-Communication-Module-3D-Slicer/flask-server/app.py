@@ -21,7 +21,7 @@ HeartModelPath = RepoRoot + "/Models/Segmentation/Models_Saved/Heart_Localizatio
 CalsModelPath = RepoRoot + "/Models/Segmentation/Models_Saved/Heart_Localization"
 
 app = Flask(__name__)
-model = Infer(model_path=HeartModelPath, model_input=(112, 112, 112))
+
 
 
 def allow_CORS():
@@ -146,7 +146,7 @@ def GetSlicesSegmentation(Slices, Shift):
     SagSlices = []
     CorSlices = []
     SegmentedSlices = [[], [], []]
-
+    model = Infer(model_path=HeartModelPath, model_input=(112, 112, 112))
     for SliceName in Names:
         Slice = Image.open(Slices[SliceName])
         SliceArray = np.array(Slice, dtype="int16")
