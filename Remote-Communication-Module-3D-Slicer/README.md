@@ -9,10 +9,16 @@ on cloud computing services.
 ## Intro
 
 
-```
-Insert a suitable Intro here
-```
+Our main goal was to provide a tool that could automatically quantify calcium volume of
+the calcified plaques in the Coronary Artery.
 
+This volume, also known as calcium score, is one of the risk factors used to
+predict the likelihood of Coronary Artery Disease Events occurring in the next few years,
+this process is currently being done manually by Radiologists, This takes
+a long time, and the results are subjective.
+
+This is what motivated us to make this extension, as way to help make this process
+better and more streamlined as there is currently no widespread tool that helps on this front.
 
 ## Requirements
 
