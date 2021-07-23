@@ -4,14 +4,15 @@
 import os
 
 import tensorflow as tf
-from Unet.unet import UNet
+from Unet.unet import UNet, getUnet3d_3_MGPU
 import callbacks as cb
-from functions import dice_coef_loss, dice_coef, tversky_index_loss, tversky_index
+# from functions import dice_coef_loss, dice_coef, tversky_index_loss, tversky_index
 from Generator import NiftyGen, NiftyAugmentor, CACGen
 import nibabel as nib
 from skimage.transform import resize
 import numpy as np
 import SimpleITK as sITK
+from test import unet_3d, dice_coef, dice_loss, soft_dice_coef
 
 # Script Variables
 Testing = False
@@ -41,8 +42,8 @@ if gpus:
 # MODEL PARAMETERS
 mode = '3D'
 down_factor = True
-output_shape = (112, 112, 112)
-input_shape = (64, 64, 32, 1)
+output_shape = (128, 128, 80)
+input_shape = (128, 128, 80, 1)
 levels = 4
 kernel_size = (3, 3, 3)
 convolutions = 2
@@ -55,23 +56,26 @@ lr = 0.0001
 optimizer = tf.keras.optimizers.Adam(lr)
 ####################################################################################################################
 # Augmentation Parameters
-aug = NiftyAugmentor([-10, 10, 0], [0.95, 1, 1.1], [0, 1])
+# aug = NiftyAugmentor([-10, 10, 0], [0.95, 1, 1.1], [0, 1])
 
 # Dataset Loader, NIFTY Loader
-gen = NiftyGen(training, augmenter=aug, mode=mode, output_shape=output_shape, down_factor=down_factor, save=False,
-               shuffle=False)
-gen_val = NiftyGen(validation, augmenter=None, mode=mode, output_shape=output_shape, down_factor=down_factor,
-                   shuffle=False)
+# gen = NiftyGen(training, augmenter=aug, mode=mode, output_shape=output_shape, down_factor=down_factor, save=False,
+#                shuffle=False)
+# gen_val = NiftyGen(validation, augmenter=None, mode=mode, output_shape=output_shape, down_factor=down_factor,
+#                    shuffle=False)
 # Ca Generators
-ca_gen = CACGen(CA_training, augmenter=aug, mode=mode, output_shape=output_shape, down_factor=down_factor, save=False,
+ca_gen = CACGen(CA_training, augmenter=None, mode=mode, output_shape=output_shape, down_factor=down_factor, save=False,
                 shuffle=False)
 ca_val = CACGen(CA_validation, augmenter=None, mode=mode, output_shape=output_shape, down_factor=down_factor,
                 shuffle=False)
+model = unet_3d(input_shape)
 
 # MODEL INSTANTIATION
-uNet3D = UNet("conv3D", up_sample="upSample3D", transpose=None, pool="max3D")
-model = uNet3D(levels=levels, convolutions=convolutions, input_shape=input_shape, kernel_size=kernel_size,
-               activation=activation, batch_norm=batch_norm, drop_out=drop_out, initial_features=initial_features)
+# uNet3D = UNet("conv3D", up_sample="upSample3D", transpose=None, pool="max3D")
+# model = uNet3D(levels=levels, convolutions=convolutions, input_shape=input_shape, kernel_size=kernel_size,
+#                activation=activation, batch_norm=batch_norm, drop_out=drop_out, initial_features=initial_features)
+
+
 # UNet2D = UNet(transpose='transpose2D')
 # model = UNet2D(levels, convolutions, input_shape, kernel_size, activation=activation,
 #                batch_norm=batch_norm, drop_out=drop_out, initial_features=initial_features)
@@ -82,16 +86,16 @@ print(model.summary())
 callbacks = [
     cb.GarbageCollect(),
     tf.keras.callbacks.ModelCheckpoint(filepath=f'{weights_path}/{model.name}_checkpoint.h5', save_freq='epoch'),
-    tf.keras.callbacks.EarlyStopping(monitor='loss', min_delta=0.0001, patience=20),
+    # tf.keras.callbacks.EarlyStopping(monitor='loss', min_delta=0.0001, patience=30),
     tf.keras.callbacks.ReduceLROnPlateau(),
-    tf.keras.callbacks.CSVLogger(f'{model.name}_logs_CAC.csv'),
+    tf.keras.callbacks.CSVLogger(f'{model.name}_logs_CAC_2.csv'),
     cb.DisplayCallback()
 ]
 
 if not Testing:
     print("Training on ", gpus[0].name)
     # Training
-    model.compile(optimizer=optimizer, loss=dice_coef_loss, metrics=['accuracy', dice_coef])
+    model.compile(optimizer=optimizer, loss=dice_loss, metrics=['accuracy', dice_coef, soft_dice_coef])
     # model.compile(optimizer=optimizer, loss=tversky_index_loss,
     #               metrics=['accuracy','sparse_categorical_accuracy',tversky_index])
     print(f"Training {model.name}")
@@ -108,9 +112,6 @@ if not Testing:
 
 # Testing Model
 if Testing:
-    import cv2
-    from skimage.transform import rotate
-
     def range_scale(img) -> np.ndarray:
         """
         Scale Given Image Array using HF range
@@ -142,6 +143,9 @@ if Testing:
     sITK_Ref = sITK.ReadImage('./CaData/Validation/trv4p4cti/trv4p4rh.mhd')
     Ref = sITK.GetArrayFromImage(sITK_Ref)
 
+    cubes, _, _, _ = CACGen.GetCubes(Image, [32, 32, 32])
+    refs, _, _, _  = CACGen.GetCubes(Ref, [32, 32, 32])
+
     print(np.unique(Ref, return_counts=True))
     print(Image.shape, Ref.shape)
     # # Test rotating Input
@@ -152,23 +156,23 @@ if Testing:
     # print(Image.min(), Image.max())
     #
     # # Reshape Both Tensors
-    Image = resize(Image, output_shape=output_shape, preserve_range=True)
-    Ref = resize(Image, output_shape=output_shape, preserve_range=True)
+    # Image = resize(Image, output_shape=output_shape, preserve_range=True)
+    # Ref = resize(Image, output_shape=output_shape, preserve_range=True)
     print(f"Data Shape , {Image.shape}")
 
-    Image = np.expand_dims(Image, 0)
-    Image = np.expand_dims(Image, -1)
+    # Image = np.expand_dims(Image, 0)
+    cubes = np.expand_dims(cubes, -1)
 
     # Range Scale
-    Image = range_scale(Image)
+    # Image = range_scale(Image)
 
     # Predict Using loaded Parameters
-    pred = model.predict(Image)
+    pred = model.predict(cubes)
 
-    Image = np.squeeze(Image, 0)
-    Image = np.squeeze(Image, -1)
+    # Image = np.squeeze(Image, 0)
+    cubes = np.squeeze(cubes, -1)
 
-    pred = np.squeeze(pred, 0)
+    # pred = np.squeeze(pred, 0)
     pred = np.squeeze(pred, -1)
 
     print(pred.shape)
@@ -202,3 +206,4 @@ if Deployment:
     # Save the Model Architecture and Weights
     model.save(os.path.join(models_path, 'Heart_Localization'))
     print("Done !! ")
+

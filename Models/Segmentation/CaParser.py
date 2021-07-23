@@ -23,7 +23,7 @@ def dice_coef(y_true: np.ndarray, y_pred: np.ndarray, smooth=1.):
     return (2. * intersection + smooth) / (np.sum(y_true_f) + np.sum(y_pred_f) + smooth)
 
 
-parse_train = False
+parse_train = True
 data_dir = './CaData'
 
 if parse_train:
@@ -32,7 +32,7 @@ else:
     data_dir = os.path.join(data_dir, 'Validation')
 
 data_files = sorted(os.listdir(data_dir))
-model = Inference.Infer('./Models_Saved/Heart_Localization', model_input=(112, 112, 112), threshold=0.999999)
+model = Inference.Infer('./Models_Saved/Heart_Localization', model_input=(112, 112, 112))
 
 # for patient_scan in data_files:
 #     # Load Patient CT Scan
@@ -85,35 +85,46 @@ for patient_scan in data_files:
 
     patient_image = sITK.GetArrayFromImage(patient_image)
     patient_ref = sITK.GetArrayFromImage(patient_ref)
+    print(patient_image.min(), patient_image.max())
 
     patient_ref[patient_ref > 1] = 1
-    print("Reference ", np.unique(patient_ref, return_counts=True))
+    print(np.unique(patient_ref, return_counts=True))
+    patient_image = ((np.clip(patient_image, -1024.0, 3071.0)) - 1023.5) / 2047.5
+    print(patient_image.min(), patient_image.max())
+    print(patient_ref.min(), patient_ref.max())
 
-    # Prediction
-    heart = model.predict(patient_image)
-    print("Heart", np.unique(heart, return_counts=True))
+    dc = []
+    pred_mask = np.zeros((patient_image.shape))
+    dc.append(dice_coef(patient_ref, pred_mask))
+    print(np.mean(dc))
 
-    # Processing Input Patient Scan
-    patient_image = heart * patient_image
-    patient_image[patient_image < 130] = 0
-    patient_image[patient_image >= 130] = 1
-    patient_image = binary_dilation(patient_image).astype('int16')
+    # print("Reference ", np.unique(patient_ref, return_counts=True))
+    #
+    # # Prediction
+    # heart = model.predict(patient_image)
+    # print("Heart", np.unique(heart, return_counts=True))
+    #
+    # # Processing Input Patient Scan
+    # patient_image = heart * patient_image
+    # patient_image[patient_image < 130] = 0
+    # patient_image[patient_image >= 130] = 1
+    # patient_image = binary_dilation(patient_image).astype('int16')
+    #
+    # print("CAC ", np.unique(patient_image, return_counts=True))
+    #
+    # # Calculate Dice Coefficient
+    # dice = dice_coef(patient_ref, patient_image)
+    # print("Dice Coefficient .. ", dice)
+    #
+    # Save Localization
+    # cac_thresh = sITK.GetImageFromArray(patient_image)
+    # ref_norm = sITK.GetImageFromArray(patient_ref)
+    # writer = sITK.ImageFileWriter()
+    #
+    # writer.SetFileName(os.path.join(patient_dir, patient_scan+'test.mhd'))
+    # writer.Execute(cac_thresh)
 
-    print("CAC ", np.unique(patient_image, return_counts=True))
-
-    # Calculate Dice Coefficient
-    dice = dice_coef(patient_ref, patient_image)
-    print("Dice Coefficient .. ", dice)
-
-    # # Save Localization
-    cac_thresh = sITK.GetImageFromArray(patient_image)
-    ref_norm = sITK.GetImageFromArray(patient_ref)
-    writer = sITK.ImageFileWriter()
-
-    writer.SetFileName(os.path.join(patient_dir, patient_scan+'CAC_masked.mhd'))
-    writer.Execute(cac_thresh)
-
-    writer.SetFileName(os.path.join(patient_dir, patient_scan+'norm.mhd'))
-    writer.Execute(ref_norm)
+    # writer.SetFileName(os.path.join(patient_dir, patient_scan+'test.mhd'))
+    # writer.Execute(ref_norm)
 
 print("Done Cropping!!")

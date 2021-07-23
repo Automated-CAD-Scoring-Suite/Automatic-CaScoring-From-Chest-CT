@@ -74,7 +74,7 @@ class NiftyGen(tf.keras.utils.Sequence):
     """Keras Sequence for loading Nifty image formats"""
 
     def __init__(self, images_path: str, mode: str = '2D', augmenter=None,
-                 scale: bool = True, shuffle: bool = False, down_factor=None, output_shape=None,
+                 scale: bool = False, shuffle: bool = False, down_factor=None, output_shape=None,
                  channels: int = 1, save: bool = False):
         self.path = images_path
         self.channels = channels
@@ -261,124 +261,120 @@ class CACGen(NiftyGen):
         # Load Patient's Scans
         patient = image_path.split('/')[-1]
 
-        sitk_image = sITK.ReadImage(os.path.join(image_path, patient+'.mhd'))
+        sitk_image = sITK.ReadImage(os.path.join(image_path, patient+'h.mhd'))
         image_array = sITK.GetArrayFromImage(sitk_image)
 
         # Load Reference Standard Segmentation
-        sitk_ref = sITK.ReadImage(os.path.join(image_path, patient[:-3]+'r.mhd'))
+        sitk_ref = sITK.ReadImage(os.path.join(image_path, patient[:-3]+'rh.mhd'))
         ref_array = sITK.GetArrayFromImage(sitk_ref)
         ref_array[ref_array > 1] = 1
 
         image_array = np.moveaxis(image_array, 0, -1)
         ref_array = np.moveaxis(ref_array, 0, -1)
-
+        image_array = ((np.clip(image_array, -1024.0, 3071.0)) - 1023.5) / 2047.5
         return image_array, ref_array
 
-    def __getitem__(self, index: int) -> tuple:
-        # Load Segmentation and Data in the Record
-        img, seg = self.LoadData(index)
+    # def __getitem__(self, index: int) -> tuple:
+    #     # Load Segmentation and Data in the Record
+    #     img, seg = self.LoadData(index)
+    #
+    #     # Process the Scan and Segmentation Arrays
+    #     seg = self.ProcessImage(seg, segmentation=True)
+    #     img = self.ProcessImage(img)
+    #
+    #     # Apply the Cube divider Algorithm
+    #     img, _, _, _ = self.GetCubes(img, [32, 32, 32])
+    #     seg, _, _, _ = self.GetCubes(seg, [32, 32, 32])
+    #
+    #     # Concatenate Both Sources for a faster
+    #     s = img.shape[1]
+    #     src = np.concatenate([img, seg], 1)
+    #
+    #     # Reshape Both Arrays
+    #     src = self.ReshapeImage(src)
+    #     img = src[:, :s, :, :, :]
+    #     seg = src[:, s:, :, :, :]
+    #
+    #     # Checking Segmentation only Contains 0 and 1, Fixing Rotations and Zooming Results
+    #     seg[seg <= 0.5] = 0.0
+    #     seg[seg > 0.5] = 1.0
+    #
+    #     # # Saving Created Batches at Batches Directory
+    #     if self.save_batch:
+    #         self.SaveBatch(img, seg, index)
+    #     return img, seg
+    #
+    # def ReshapeImage(self, img: np.ndarray) -> np.ndarray:
+    #     """
+    #         Reshape the Image to be Compatible with TF Backend
+    #     :param img: Input Image
+    #     :return: Reshaped Image
+    #     """
+    #     src = np.copy(img)
+    #     if self.aug:
+    #         src = self.aug.fit(src)
+    #     # Reshape the Output Images to be compatible with Tensorflow Slicing System
+    #     # (batch_size, H, W, D, Channels)
+    #     src = np.expand_dims(src, -1)
+    #     return src
+    #
+    # @staticmethod
+    # def GetCubes(img, cube_size):
+    #     sizeX = img.shape[2]
+    #     sizeY = img.shape[1]
+    #     sizeZ = img.shape[0]
+    #
+    #     cubeSizeX = cube_size[0]
+    #     cubeSizeY = cube_size[1]
+    #     cubeSizeZ = cube_size[2]
+    #
+    #     n_z = int(math.ceil(float(sizeZ) / cubeSizeZ))
+    #     n_y = int(math.ceil(float(sizeY) / cubeSizeY))
+    #     n_x = int(math.ceil(float(sizeX) / cubeSizeX))
+    #
+    #     sizeNew = [n_z * cubeSizeZ, n_y * cubeSizeY, n_x * cubeSizeX]
+    #
+    #     imgNew = np.zeros(sizeNew, dtype=np.float16)
+    #     imgNew[0:sizeZ, 0:sizeY, 0:sizeX] = img
+    #
+    #     n_ges = n_x * n_y * n_z
+    #     n_4 = int(math.ceil(float(n_ges) / 4.) * 4)
+    #
+    #     imgCubes = np.zeros((n_4, cubeSizeZ, cubeSizeY, cubeSizeX)) - 1  # -1 = air
+    #
+    #     count = 0
+    #     for z in range(n_z):
+    #         for y in range(n_y):
+    #             for x in range(n_x):
+    #                 imgCubes[count] = imgNew[z * cubeSizeZ:(z + 1) * cubeSizeZ,
+    #                                   y * cubeSizeY:(y + 1) * cubeSizeY,
+    #                                   x * cubeSizeX:(x + 1) * cubeSizeX]
+    #                 count += 1
+    #
+    #     return imgCubes, n_x, n_y, n_z
 
-        # Process the Scan and Segmentation Arrays
-        seg = self.ProcessImage(seg, segmentation=True)
-        img = self.ProcessImage(img)
-
-        # Apply the Cube divider Algorithm
-        img, _, _, _ = self.GetCubes(img, [32, 64, 64])
-        seg, _, _, _ = self.GetCubes(seg, [32, 64, 64])
-
-        # Concatenate Both Sources for a faster
-        s = img.shape[1]
-        src = np.concatenate([img, seg], 1)
-
-        # Reshape Both Arrays
-        src = self.ReshapeImage(src)
-        img = src[:, :s, :, :, :]
-        seg = src[:, s:, :, :, :]
-
-        # Checking Segmentation only Contains 0 and 1, Fixing Rotations and Zooming Results
-        seg[seg <= 0.5] = 0.0
-        seg[seg > 0.5] = 1.0
-
-        # # Saving Created Batches at Batches Directory
-        if self.save_batch:
-            self.SaveBatch(img, seg, index)
-        return img, seg
-
-    def ReshapeImage(self, img: np.ndarray) -> np.ndarray:
-        """
-            Reshape the Image to be Compatible with TF Backend
-        :param img: Input Image
-        :return: Reshaped Image
-        """
-        src = np.copy(img)
-        if self.aug:
-            src = self.aug.fit(src)
-        # Reshape the Output Images to be compatible with Tensorflow Slicing System
-        # (batch_size, H, W, D, Channels)
-        src = np.expand_dims(src, -1)
-        return src
-
-    @staticmethod
-    def GetCubes(img, cube_size):
-        sizeX = img.shape[2]
-        sizeY = img.shape[1]
-        sizeZ = img.shape[0]
-
-        cubeSizeX = cube_size[0]
-        cubeSizeY = cube_size[1]
-        cubeSizeZ = cube_size[2]
-
-        n_z = int(math.ceil(float(sizeZ) / cubeSizeZ))
-        n_y = int(math.ceil(float(sizeY) / cubeSizeY))
-        n_x = int(math.ceil(float(sizeX) / cubeSizeX))
-
-        sizeNew = [n_z * cubeSizeZ, n_y * cubeSizeY, n_x * cubeSizeX]
-
-        imgNew = np.zeros(sizeNew, dtype=np.float16)
-        imgNew[0:sizeZ, 0:sizeY, 0:sizeX] = img
-
-        n_ges = n_x * n_y * n_z
-        n_4 = int(math.ceil(float(n_ges) / 4.) * 4)
-
-        imgCubes = np.zeros((n_4, cubeSizeZ, cubeSizeY, cubeSizeX)) - 1  # -1 = air
-
-        count = 0
-        for z in range(n_z):
-            for y in range(n_y):
-                for x in range(n_x):
-                    imgCubes[count] = imgNew[z * cubeSizeZ:(z + 1) * cubeSizeZ,
-                                      y * cubeSizeY:(y + 1) * cubeSizeY,
-                                      x * cubeSizeX:(x + 1) * cubeSizeX]
-                    count += 1
-
-        return imgCubes, n_x, n_y, n_z
-
-    def SaveBatch(self, img, seg, index):
-        test_img = np.squeeze(img, -1)
-        test_seg = np.squeeze(seg, -1)
-        if self.modeIs3D:
-            test_img = np.squeeze(img, 0)
-            test_seg = np.squeeze(seg, 0)
-            test_img = np.squeeze(test_img, -1)
-            test_seg = np.squeeze(test_seg, -1)
-
-        image = sITK.GetImageFromArray(test_img)
-        ref = sITK.GetImageFromArray(test_seg)
-
-        writer = sITK.ImageFileWriter()
-        writer.SetFileName(os.path.join(self.target, f"batch_img_{index}.mhd"))
-        writer.Execute(image)
-
-        writer.SetFileName(os.path.join(self.target, f"batch_ref_{index}.mhd"))
-        writer.Execute(ref)
+    # def SaveBatch(self, img, seg, index):
+    #     test_img = np.squeeze(img, -1)
+    #     test_seg = np.squeeze(seg, -1)
+    #
+    #     for i in range(test_img.shape[0]):
+    #         image = sITK.GetImageFromArray(test_img[i, :, :, :])
+    #         ref = sITK.GetImageFromArray(test_seg[i, :, :, :])
+    #
+    #         writer = sITK.ImageFileWriter()
+    #         writer.SetFileName(os.path.join(self.target, f"batch_img_{index}_{i}.mhd"))
+    #         writer.Execute(image)
+    #
+    #         writer.SetFileName(os.path.join(self.target, f"batch_ref_{index}_{i}.mhd"))
+    #         writer.Execute(ref)
 
 
 if __name__ == '__main__':
     # training = 'Data/Training/'
     training = 'CaData/Training/'
     mode = '3D'
-    output_shape = (112, 112, 112)
-    input_shape = (112, 112, 112, 1)
+    output_shape = (128, 128, 80)
+    input_shape = (32, 64, 64, 1)
     down_factor = True
 
     # aug = NiftyAugmentor([-10, 10, 0], [0.95, 1, 1.1], [0, 1842239878])
@@ -390,7 +386,7 @@ if __name__ == '__main__':
     #     print(i[1].shape)
     aug = NiftyAugmentor([-10, 10, 0], [0.95, 1, 1.1], [0, 1])
 
-    genCAC = CACGen(training, augmenter=None, down_factor=True, save=False, mode=mode, output_shape=output_shape)
+    genCAC = CACGen(training, augmenter=None, down_factor=True, save=True, mode=mode, output_shape=output_shape)
     for i in genCAC:
         print(i[0].shape)
         print(i[1].shape)
