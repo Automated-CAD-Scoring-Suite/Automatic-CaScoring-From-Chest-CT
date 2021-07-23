@@ -1,13 +1,17 @@
 # Coronary Artery Disease Scoring Suit For 3D Slicer
-# Remote-Communication-Module-for-3D-Slicer
 
-```
-Insert a suitable Intro here
-```
+## A Remote Communication Module for 3D Slicer
 
 A loadable module for 3D Slicer Platform written 
 in python, with a flask server for easy deployment 
 on cloud computing services.
+
+## Intro
+
+
+```
+Insert a suitable Intro here
+```
 
 
 ## Requirements
@@ -134,8 +138,6 @@ Creates a closed surface representation of the calcifications, similar to that o
 Using this option utilizes a TensorFlow Deep Learning Model to predict the location of 
 calcifications.
 
-`There is currently no available demo model with reasonable output for calcifications detection`
-
 ### Use A Separate Process For Intensive Operations
 
 This option delegates long-running operation to a separate process so that it doesn't block 
@@ -157,3 +159,55 @@ We choose to use a separate process instead of a second thread for a couple of r
    need to be made which could destabilize the application making it more error prone and prevent 
    the usage of some functionalities temporarily, this was a point against using threads even though
    it's generally easier to use them inside Qt.
+   
+## Local Processing
+
+![Local Processing Settings](Images/Local%20Processing.png)
+
+These settings are only available when using the local mode
+
+### Heart Segmentation Model
+
+Path to the folder containing the TensorFlow model used in the heart's segmentation,
+we have one already provided which can be downloaded, but any model would work.
+
+### Calcifications Model
+
+Path to the folder containing the TensorFlow model used in detecting calcifications.
+
+`There is currently no available demo model with reasonable output for calcifications detection provided`
+
+## Online Processing
+
+![Online Processing Settings](Images/Online%20Processing.png)
+
+These settings are only available when using the online mode.
+
+### Server URL
+
+URL of the server to send the data to for processing, a demo server is provided
+
+### Don't Request Segmentation
+
+Only available during the partial segmentation mode, returns the bounding box coordinates instead
+of returning the segmented slices and calculating the coordinates locally
+
+### Anonymize Data
+
+Removes any possible patient personal information before sending the volume to the server,
+currently can't be disabled but this could change in the future when some information,
+such as age and sex, could be used as parameters to help more in diagnosis.
+
+## Progress
+
+![Progress Information](Images/Progress.png)
+
+Shows the progress of the operations, what is currently in progress, what has been completed and
+some time statistics.
+
+## Results
+
+![Results Information](Images/Results.png)
+
+Shows the results of any calculation made, currently show the volume of the detected calcifications,
+also shows the total time taken to process the data. 
