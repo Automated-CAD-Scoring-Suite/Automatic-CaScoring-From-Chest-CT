@@ -58,9 +58,12 @@ def GetCoords(Segmentation, Partial=True):
     """
     if Partial:
         # Get Coordinates For Each View
-        AxCoor = [int(i) for i in get_coords(Segmentation[0])]
-        SagCoor = [int(i) for i in get_coords(Segmentation[1])]
-        CorCoor = [int(i) for i in get_coords(Segmentation[2])]
+        AxCoor = [int(i) for i in
+                  get_coords([Segmentation[0][0][0, :, :], Segmentation[0][0][1, :, :], Segmentation[0][0][2, :, :]])]
+        SagCoor = [int(i) for i in
+                   get_coords([Segmentation[1][0][0, :, :], Segmentation[1][0][1, :, :], Segmentation[1][0][2, :, :]])]
+        CorCoor = [int(i) for i in
+                   get_coords([Segmentation[2][0][0, :, :], Segmentation[2][0][1, :, :], Segmentation[2][0][2, :, :]])]
         CoordinatesList = [AxCoor, SagCoor, CorCoor]
 
         # Determine Correct Cropping Coordinates For Each Dimension
