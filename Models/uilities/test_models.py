@@ -1,6 +1,6 @@
 # Import Packages
-from helpers import load_itk, load_nib, plot_view, plot_slice
-from crop_roi import find_roi, crop_roi
+from helpers import load_nib, plot_slice
+from Models.uilities.crop_roi import find_roi, crop_roi
 
 # itkimage, img_data, origin, spacing = load_itk('../Dataset/trv1p1cti.nii.gz')
 img_data = load_nib('../Dataset/trv1p1cti.nii.gz')
