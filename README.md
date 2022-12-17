@@ -5,11 +5,11 @@ Coronary Artery Disease (CAD) is a major cause
 of death for men, women and people of all racial groups. In 2018,
 Egypt had 163,171 deaths from CAD, about 29% of the total
 deaths that year. According to WHO Egypt is ranked 15 on the
-world`s rate of death from CAD with 271.9 deaths per 100,000
+world's rate of death from CAD with 271.9 deaths per 100,000
 of population [1]. These numbers indicate the seriousness of the
 disease that Egypt is facing. Detecting this disease is time
 dependent and human error prone, Experienced Radiologists
-examine a patient`s CT and calculate the volume of
+examine a patient's CT and calculate the volume of
 Calcifications found inside the patient’s heart. In this Paper, we
 propose a framework of Automated Deep learning Algorithms
 for the Quantification of the Calcification Volume from Low-
